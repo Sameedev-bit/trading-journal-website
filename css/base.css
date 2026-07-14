@@ -30,6 +30,7 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0}
   cursor:pointer;transition:all .15s ease;white-space:nowrap;text-decoration:none;
   -webkit-appearance:none;appearance:none;
 }
+.btn,.chip,.seg button,.prep-pill{touch-action:manipulation}
 .btn:hover{border-color:var(--accent);color:var(--text);text-decoration:none;transform:translateY(-1px)}
 .btn:active{transform:translateY(0)}
 .btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
@@ -99,7 +100,13 @@ input[type=checkbox]{
 /* ---------- KPI tiles ---------- */
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 @media(max-width:1080px){.kpis{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:560px){.kpis{grid-template-columns:1fr}}
+@media(max-width:560px){
+  .kpis{grid-template-columns:repeat(2,1fr);gap:9px}
+  .kpi{padding:11px 12px}
+  .kpi .k-value{font-size:18px}
+  .kpi .k-sub{font-size:10px}
+}
+@media(max-width:360px){.kpis{grid-template-columns:1fr}}
 .kpi{
   background:linear-gradient(170deg,var(--panel),var(--panel2));
   border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;
@@ -174,9 +181,11 @@ details.dd>summary::after{content:'▾';font-size:9px;color:var(--muted)}
 details.dd[open]>summary{border-color:var(--accent)}
 details.dd .dd-menu{
   position:absolute;top:calc(100% + 6px);left:0;z-index:60;min-width:230px;max-height:320px;overflow:auto;
+  max-width:min(320px,calc(100vw - 40px));
   background:var(--panel);border:1px solid var(--line-strong);border-radius:var(--radius-sm);
   box-shadow:var(--shadow);padding:8px;
 }
+details.dd .dd-menu.dd-right{left:auto;right:0}
 .dd-menu .dd-item{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--text-soft)}
 .dd-menu .dd-item:hover{background:rgba(28,36,51,.04)}
 .dd-menu .dd-group{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:8px 9px 3px}
@@ -203,7 +212,16 @@ details.dd .dd-menu{
 }
 .modal-x:hover{background:var(--panel3);color:var(--text)}
 .modal-body{padding:18px 20px;overflow-y:auto}
-.modal-foot{display:flex;justify-content:flex-end;gap:9px;padding:14px 20px;border-top:1px solid var(--line)}
+.modal-foot{display:flex;justify-content:flex-end;gap:9px;padding:14px 20px;border-top:1px solid var(--line);flex-wrap:wrap}
+@media(max-width:640px){
+  /* bottom-sheet feel on phones */
+  .modal-overlay{align-items:flex-end;padding:0}
+  .modal{max-width:none;max-height:88vh;border-radius:var(--radius) var(--radius) 0 0;border-bottom:0}
+  .modal-foot .btn{flex:1;justify-content:center}
+  /* 16px inputs stop iOS from zoom-jumping on focus */
+  input[type=text],input[type=number],input[type=date],input[type=datetime-local],
+  input[type=time],input[type=search],input[type=email],select,textarea{font-size:16px}
+}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes popIn{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
 
@@ -239,7 +257,11 @@ details.dd .dd-menu{
 .stack{display:flex;flex-direction:column;gap:14px}
 .grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
 .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-@media(max-width:900px){.grid-2,.grid-3{grid-template-columns:1fr}}
+.grid-2.wide-left{grid-template-columns:1.4fr 1fr;align-items:start}
+.grid-2>*,.grid-3>*{min-width:0}
+.kpis.thirds{grid-template-columns:repeat(3,1fr)}
+@media(max-width:900px){.grid-2,.grid-2.wide-left,.grid-3{grid-template-columns:1fr}}
+@media(max-width:560px){.kpis.thirds{grid-template-columns:1fr}}
 .mono{font-family:var(--mono);font-size:12px}
 .muted{color:var(--muted)}
 .faint{color:var(--faint)}

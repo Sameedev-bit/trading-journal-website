@@ -155,6 +155,13 @@ TH.ui = (function () {
     var menu = el('div', { class: 'dd-menu' });
     dd.appendChild(sum);
     dd.appendChild(menu);
+    // open right-aligned when the menu would spill past the viewport edge
+    dd.addEventListener('toggle', function () {
+      if (!dd.open) return;
+      menu.classList.remove('dd-right');
+      var r = menu.getBoundingClientRect();
+      if (r.right > window.innerWidth - 12) menu.classList.add('dd-right');
+    });
 
     function labelText() {
       if (!selected.length || selected.length === opts.items.length) return opts.allLabel || 'All';

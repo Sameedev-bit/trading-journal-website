@@ -183,7 +183,7 @@
     var trades = calc.filterTrades(store.get('trades') || [], { from: monthStart, to: today }, {});
     var tradePL = trades.reduce(function (s, t) { return s + calc.net(t); }, 0);
     var netAfter = tradePL - thisMonth;
-    var strip = ui.el('div', { class: 'kpis', style: 'grid-template-columns:repeat(3,1fr)' });
+    var strip = ui.el('div', { class: 'kpis thirds' });
     strip.innerHTML =
       '<div class="kpi"><div class="k-label">Trading P/L · this month</div><div class="k-value ' + ui.plClass(tradePL) + '">' + ui.fmtMoney(tradePL) + '</div><div class="k-sub">' + trades.length + ' trade' + (trades.length === 1 ? '' : 's') + ' since ' + calc.fmtDateKey(monthStart) + '.</div></div>' +
       '<div class="kpi"><div class="k-label">Expenses · this month</div><div class="k-value pl-neg">' + ui.fmtMoney(-thisMonth) + '</div><div class="k-sub">What it cost to sit at the desk.</div></div>' +
@@ -337,7 +337,7 @@
     var subs = store.get('subscriptions') || [];
     ui.headStat(ui.fmtMoney(calc.monthlyRecurring(subs), { plus: false, dec: 0 }), 'Monthly recurring');
     renderKpis(root);
-    var cols = ui.el('div', { class: 'grid-2', style: 'grid-template-columns:1.4fr 1fr;align-items:start' });
+    var cols = ui.el('div', { class: 'grid-2 wide-left' });
     var left = ui.el('div', { class: 'stack' });
     var right = ui.el('div', { class: 'stack' });
     renderSubs(left);

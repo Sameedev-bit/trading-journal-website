@@ -60,7 +60,8 @@
         class: 't-meta',
         text: calc.fmtIso(t.entryTime) + ' · ' + t.contracts + ' contract' + (t.contracts === 1 ? '' : 's') +
           (t.riskAmount ? ' · risk $' + t.riskAmount : '') +
-          ' · ' + (pts >= 0 ? '+' : '−') + Math.abs(pts).toFixed(2) + ' pts'
+          ' · ' + (pts >= 0 ? '+' : '−') + Math.abs(pts).toFixed(2) + ' pts' +
+          (r !== null ? ' · ' + ui.fmtR(r) : '')
       }));
       row.appendChild(main);
       row.appendChild(ui.el('div', { class: 't-pl ' + ui.plClass(net), text: ui.fmtMoney(net) }));

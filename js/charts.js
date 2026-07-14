@@ -39,8 +39,14 @@ TH.charts = (function () {
   function plChart(container, series, mode) {
     container.innerHTML = '';
     container.classList.add('chart-frame');
+    container._thChart = { series: series, mode: mode };
 
-    var W = 860, H = 300, padL = 62, padR = 14, padT = 16, padB = 30;
+    // phone profile: smaller canvas + bigger relative type so axis text stays legible
+    var phone = container.clientWidth > 0 && container.clientWidth < 520;
+    var W = phone ? 430 : 860, H = phone ? 280 : 300;
+    var padL = phone ? 46 : 62, padR = phone ? 10 : 14, padT = 16, padB = phone ? 26 : 30;
+    var fontAxis = phone ? '12' : '10.5';
+    var maxXLabels = phone ? 4 : 6;
     var innerW = W - padL - padR, innerH = H - padT - padB;
 
     var svg = svgEl('svg', { viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'xMidYMid meet', role: 'img', 'aria-label': 'Profit and loss chart' });
@@ -69,7 +75,7 @@ TH.charts = (function () {
     /* gridlines + y labels */
     niceTicks(minV, maxV, 4).forEach(function (tv) {
       svg.appendChild(svgEl('line', { x1: padL, x2: W - padR, y1: y(tv), y2: y(tv), stroke: 'rgba(28,36,51,.07)', 'stroke-width': 1 }));
-      var lbl = svgEl('text', { x: padL - 8, y: y(tv) + 4, 'text-anchor': 'end', fill: 'rgba(95,107,125,.95)', 'font-size': '10.5', 'font-family': 'inherit' });
+      var lbl = svgEl('text', { x: padL - 8, y: y(tv) + 4, 'text-anchor': 'end', fill: 'rgba(95,107,125,.95)', 'font-size': fontAxis, 'font-family': 'inherit' });
       lbl.textContent = shortMoney(tv);
       svg.appendChild(lbl);
     });
@@ -77,11 +83,11 @@ TH.charts = (function () {
     if (minV < 0 && maxV > 0) {
       svg.appendChild(svgEl('line', { x1: padL, x2: W - padR, y1: y(0), y2: y(0), stroke: 'rgba(28,36,51,.3)', 'stroke-width': 1, 'stroke-dasharray': '3 3' }));
     }
-    /* x labels — up to 6, evenly sampled */
-    var lblCount = Math.min(6, series.length);
+    /* x labels — evenly sampled */
+    var lblCount = Math.min(maxXLabels, series.length);
     for (var li = 0; li < lblCount; li++) {
       var idx = lblCount === 1 ? 0 : Math.round(li * (series.length - 1) / (lblCount - 1));
-      var xl = svgEl('text', { x: x(idx), y: H - 8, 'text-anchor': 'middle', fill: 'rgba(95,107,125,.95)', 'font-size': '10.5', 'font-family': 'inherit' });
+      var xl = svgEl('text', { x: x(idx), y: H - 8, 'text-anchor': 'middle', fill: 'rgba(95,107,125,.95)', 'font-size': fontAxis, 'font-family': 'inherit' });
       xl.textContent = shortDate(series[idx].dateKey);
       svg.appendChild(xl);
     }
@@ -116,7 +122,7 @@ TH.charts = (function () {
       area = line + 'L' + x(series.length - 1).toFixed(1) + ' ' + baseY.toFixed(1) +
         'L' + x(0).toFixed(1) + ' ' + baseY.toFixed(1) + 'Z';
       svg.appendChild(svgEl('path', { d: area, fill: 'url(#' + gradId + ')' }));
-      svg.appendChild(svgEl('path', { d: line, fill: 'none', stroke: '#a16207', 'stroke-width': 2.2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+      svg.appendChild(svgEl('path', { d: line, fill: 'none', stroke: '#a16207', 'stroke-width': phone ? 2.6 : 2.2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
       var last = series[series.length - 1];
       svg.appendChild(svgEl('circle', { cx: x(series.length - 1), cy: y(last.cum), r: 3.6, fill: '#a16207', stroke: '#ffffff', 'stroke-width': 2 }));
     }
@@ -130,9 +136,9 @@ TH.charts = (function () {
     var dot = svgEl('circle', { r: 4, fill: '#1c2433', stroke: '#ffffff', 'stroke-width': 2, visibility: 'hidden' });
     svg.appendChild(dot);
 
-    svg.addEventListener('mousemove', function (e) {
+    function showAt(clientX) {
       var rect = svg.getBoundingClientRect();
-      var mx = (e.clientX - rect.left) * (W / rect.width);
+      var mx = (clientX - rect.left) * (W / rect.width);
       var frac = series.length === 1 ? 0 : (mx - padL) / innerW;
       var i = Math.max(0, Math.min(series.length - 1, Math.round(frac * (series.length - 1))));
       var p = series[i];
@@ -148,13 +154,36 @@ TH.charts = (function () {
       var px = (x(i) / W) * cw.width;
       tip.style.left = Math.min(cw.width - tip.offsetWidth - 6, Math.max(6, px + 12)) + 'px';
       tip.style.top = '10px';
-    });
-    svg.addEventListener('mouseleave', function () {
+    }
+    function hideTip() {
       tip.style.display = 'none';
       cross.setAttribute('visibility', 'hidden');
       dot.setAttribute('visibility', 'hidden');
-    });
+    }
+    svg.addEventListener('mousemove', function (e) { showAt(e.clientX); });
+    svg.addEventListener('mouseleave', hideTip);
+    svg.addEventListener('touchstart', function (e) {
+      if (e.touches.length) showAt(e.touches[0].clientX);
+    }, { passive: true });
+    svg.addEventListener('touchmove', function (e) {
+      if (e.touches.length) showAt(e.touches[0].clientX);
+    }, { passive: true });
+    svg.addEventListener('touchend', hideTip, { passive: true });
+    svg.addEventListener('touchcancel', hideTip, { passive: true });
   }
+
+  /* re-render live charts when the viewport crosses the phone breakpoint */
+  var resizeTimer = null;
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      document.querySelectorAll('.chart-frame').forEach(function (el) {
+        if (el._thChart && document.body.contains(el)) {
+          plChart(el, el._thChart.series, el._thChart.mode);
+        }
+      });
+    }, 180);
+  });
 
   return { plChart: plChart };
 })();

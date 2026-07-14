@@ -69,6 +69,8 @@
   }
   .mob-bar .m-title{font-weight:800;font-size:14px}
   .page-body{padding:18px 16px 30px}
+  .page-head{padding:18px 16px 0}
+  .app-foot{padding:16px 16px 20px}
   .sb-scrim{position:fixed;inset:0;z-index:85;background:rgba(28,36,51,.4)}
 }
 
@@ -108,6 +110,17 @@
 .filterbar .spacer{flex:1}
 .filterbar input[type=search]{width:170px}
 .filterbar input[type=date]{width:140px}
+@media(max-width:720px){
+  /* stack filter controls full-width so they're comfortably tappable */
+  .filterbar{align-items:stretch}
+  .filterbar .fb-label{width:100%;margin:0 0 -2px}
+  .filterbar>select,.filterbar>input[type=search],.filterbar>input[type=date],
+  .filterbar>details.dd,.filterbar>.seg{width:100%;flex:1 1 100%}
+  .filterbar>details.dd>summary{width:100%;justify-content:space-between}
+  .filterbar>.seg{display:grid;grid-template-columns:1fr 1fr}
+  .filterbar .spacer{display:none}
+  .filterbar>.btn{flex:1 1 calc(50% - 5px);justify-content:center}
+}
 
 /* ---------- calendar ---------- */
 .cal-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
@@ -121,6 +134,7 @@
 .cal-nav button:hover{color:var(--text);border-color:var(--accent)}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr) 92px;gap:5px}
 .cal-grid.no-week{grid-template-columns:repeat(7,1fr)}
+.cal-grid>*{min-width:0}
 .cal-dow{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);text-align:center;padding:4px 0}
 .cal-cell{
   min-height:76px;border-radius:var(--radius-xs);border:1px solid var(--line);
@@ -140,11 +154,18 @@
 }
 .cal-week .c-day{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
 @media(max-width:900px){
-  .cal-grid{grid-template-columns:repeat(7,1fr)}
+  .cal-grid{grid-template-columns:repeat(7,1fr);gap:3px}
+  .cal-grid:not(.no-week) .cal-dow:last-child{display:none}
   .cal-week{display:none}
   .cal-cell{min-height:58px;padding:4px 5px}
   .cal-cell .c-pl{font-size:10px}
   .cal-cell .c-n{display:none}
+}
+@media(max-width:560px){
+  .cal-cell{min-height:48px;padding:3px 4px;border-radius:6px}
+  .cal-cell .c-day{font-size:9.5px}
+  .cal-cell .c-r{display:none}
+  .cal-cell .c-pl{font-size:9.5px;letter-spacing:-.02em}
 }
 
 /* prep calendar variants */
@@ -159,6 +180,12 @@
 .prep-pill.done{background:var(--accent-soft);border-color:rgba(161,98,7,.35);color:var(--accent)}
 .prep-pill.wk{background:var(--violet-soft);border-color:rgba(109,40,217,.3);color:var(--violet)}
 .prep-pill.wk.done{background:rgba(109,40,217,.16)}
+@media(max-width:900px){
+  /* real touch targets: stack pills vertically and let cells grow */
+  .cal-cell .prep-pills{flex-direction:column;gap:3px}
+  .prep-pill{min-height:30px;font-size:9px;flex:none;width:100%;min-width:0}
+  .cal-cell:has(.prep-pills){min-height:118px}
+}
 
 /* ---------- chart ---------- */
 .chart-frame{position:relative}
