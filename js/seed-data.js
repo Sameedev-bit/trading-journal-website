@@ -154,14 +154,14 @@ TH.seed = (function () {
 
     /* ---- tags ---- */
     var tags = [
-      { id: 'tag-1', label: 'A+ setup',     color: '#34d399' },
-      { id: 'tag-2', label: 'Breakout',     color: '#5b9dff' },
-      { id: 'tag-3', label: 'Pullback',     color: '#2dd4bf' },
-      { id: 'tag-4', label: 'Fade',         color: '#a78bfa' },
-      { id: 'tag-5', label: 'News day',     color: '#fbbf24' },
-      { id: 'tag-6', label: 'Late entry',   color: '#fb923c' },
-      { id: 'tag-7', label: 'Overtraded',   color: '#f87171' },
-      { id: 'tag-8', label: 'Needs review', color: '#94a3b8' }
+      { id: 'tag-1', label: 'A+ setup',     color: '#047857' },
+      { id: 'tag-2', label: 'Breakout',     color: '#1e40af' },
+      { id: 'tag-3', label: 'Pullback',     color: '#a16207' },
+      { id: 'tag-4', label: 'Fade',         color: '#6d28d9' },
+      { id: 'tag-5', label: 'News day',     color: '#b45309' },
+      { id: 'tag-6', label: 'Late entry',   color: '#c2410c' },
+      { id: 'tag-7', label: 'Overtraded',   color: '#be123c' },
+      { id: 'tag-8', label: 'Needs review', color: '#64748b' }
     ];
     var tagIds = tags.map(function (t) { return t.id; });
 

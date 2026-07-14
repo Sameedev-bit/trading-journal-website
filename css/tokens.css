@@ -1,43 +1,44 @@
-/* TradeHarbor design tokens */
+/* TradeHarbor design tokens — light "harbor ledger" theme (paper, ink & brass) */
 :root{
-  /* surfaces */
-  --bg:#0b0f14;
-  --bg2:#0d1219;
-  --panel:#121a24;
-  --panel2:#0f151d;
-  --panel3:#161f2b;
-  --line:rgba(148,170,200,.10);
-  --line-strong:rgba(148,170,200,.22);
+  /* surfaces — warm paper */
+  --bg:#f6f4ee;
+  --bg2:#eeeae0;
+  --panel:#ffffff;
+  --panel2:#fbfaf5;
+  --panel3:#f1eee5;
+  --line:rgba(28,36,51,.09);
+  --line-strong:rgba(28,36,51,.20);
 
-  /* text */
-  --text:#e8eef7;
-  --text-soft:#b6c2d1;
-  --muted:#7d8ea1;
-  --faint:#55657a;
+  /* ink */
+  --text:#1c2433;
+  --text-soft:#3c4859;
+  --muted:#5f6b7d;
+  --faint:#8f99a8;
 
-  /* brand + semantic */
-  --accent:#2dd4bf;
-  --accent-strong:#14b8a6;
-  --accent-soft:rgba(45,212,191,.12);
-  --blue:#5b9dff;
-  --blue-soft:rgba(91,157,255,.12);
-  --green:#34d399;
-  --green-soft:rgba(52,211,153,.12);
-  --red:#f87171;
-  --red-soft:rgba(248,113,113,.12);
-  --amber:#fbbf24;
-  --amber-soft:rgba(251,191,36,.12);
-  --violet:#a78bfa;
-  --violet-soft:rgba(167,139,250,.12);
+  /* brand + semantic — brass & navy */
+  --accent:#a16207;
+  --accent-strong:#854d0e;
+  --accent-soft:rgba(161,98,7,.10);
+  --blue:#1e40af;
+  --blue-soft:rgba(30,64,175,.08);
+  --green:#047857;
+  --green-soft:rgba(4,120,87,.09);
+  --red:#be123c;
+  --red-soft:rgba(190,18,60,.08);
+  --amber:#b45309;
+  --amber-soft:rgba(180,83,9,.10);
+  --violet:#6d28d9;
+  --violet-soft:rgba(109,40,217,.08);
 
   /* shape + depth */
   --radius:14px;
   --radius-sm:10px;
   --radius-xs:8px;
-  --shadow:0 12px 32px rgba(0,0,0,.35);
-  --shadow-soft:0 6px 18px rgba(0,0,0,.25);
+  --shadow:0 14px 34px rgba(28,36,51,.12);
+  --shadow-soft:0 4px 14px rgba(28,36,51,.06);
 
   /* type */
   --font:'Inter','Segoe UI',system-ui,-apple-system,Roboto,'Helvetica Neue',Arial,sans-serif;
+  --font-display:Georgia,'Iowan Old Style','Times New Roman',serif;
   --mono:ui-monospace,'SF Mono','Cascadia Code',Consolas,'Liberation Mono',monospace;
 }

@@ -1,13 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <defs>
     <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#2dd4bf"/>
-      <stop offset="1" stop-color="#5b9dff"/>
+      <stop offset="0" stop-color="#e0a63d"/>
+      <stop offset="1" stop-color="#a16207"/>
     </linearGradient>
   </defs>
-  <rect x="2" y="2" width="60" height="60" rx="16" fill="#0f151d" stroke="url(#g)" stroke-width="2.5"/>
-  <!-- lighthouse/harbor beacon over a rising equity curve -->
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="#1c2433"/>
+  <!-- brass equity curve rising over an ink chart card -->
   <path d="M10 44 L22 34 L30 39 L44 22 L54 27" fill="none" stroke="url(#g)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-  <circle cx="54" cy="27" r="4.5" fill="#2dd4bf"/>
-  <path d="M10 52 h44" stroke="rgba(148,170,200,.35)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 7"/>
+  <circle cx="54" cy="27" r="4.5" fill="#e0a63d"/>
+  <path d="M10 52 h44" stroke="rgba(246,244,238,.35)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 7"/>
 </svg>

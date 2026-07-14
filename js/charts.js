@@ -47,7 +47,7 @@ TH.charts = (function () {
     container.appendChild(svg);
 
     if (!series.length) {
-      var t = svgEl('text', { x: W / 2, y: H / 2, 'text-anchor': 'middle', fill: 'rgba(125,142,161,.8)', 'font-size': '13', 'font-family': 'inherit' });
+      var t = svgEl('text', { x: W / 2, y: H / 2, 'text-anchor': 'middle', fill: 'rgba(95,107,125,.85)', 'font-size': '13', 'font-family': 'inherit' });
       t.textContent = 'No trades in the selected range';
       svg.appendChild(t);
       return;
@@ -68,20 +68,20 @@ TH.charts = (function () {
 
     /* gridlines + y labels */
     niceTicks(minV, maxV, 4).forEach(function (tv) {
-      svg.appendChild(svgEl('line', { x1: padL, x2: W - padR, y1: y(tv), y2: y(tv), stroke: 'rgba(148,170,200,.08)', 'stroke-width': 1 }));
-      var lbl = svgEl('text', { x: padL - 8, y: y(tv) + 4, 'text-anchor': 'end', fill: 'rgba(125,142,161,.9)', 'font-size': '10.5', 'font-family': 'inherit' });
+      svg.appendChild(svgEl('line', { x1: padL, x2: W - padR, y1: y(tv), y2: y(tv), stroke: 'rgba(28,36,51,.07)', 'stroke-width': 1 }));
+      var lbl = svgEl('text', { x: padL - 8, y: y(tv) + 4, 'text-anchor': 'end', fill: 'rgba(95,107,125,.95)', 'font-size': '10.5', 'font-family': 'inherit' });
       lbl.textContent = shortMoney(tv);
       svg.appendChild(lbl);
     });
     /* zero line */
     if (minV < 0 && maxV > 0) {
-      svg.appendChild(svgEl('line', { x1: padL, x2: W - padR, y1: y(0), y2: y(0), stroke: 'rgba(148,170,200,.35)', 'stroke-width': 1, 'stroke-dasharray': '3 3' }));
+      svg.appendChild(svgEl('line', { x1: padL, x2: W - padR, y1: y(0), y2: y(0), stroke: 'rgba(28,36,51,.3)', 'stroke-width': 1, 'stroke-dasharray': '3 3' }));
     }
     /* x labels — up to 6, evenly sampled */
     var lblCount = Math.min(6, series.length);
     for (var li = 0; li < lblCount; li++) {
       var idx = lblCount === 1 ? 0 : Math.round(li * (series.length - 1) / (lblCount - 1));
-      var xl = svgEl('text', { x: x(idx), y: H - 8, 'text-anchor': 'middle', fill: 'rgba(125,142,161,.9)', 'font-size': '10.5', 'font-family': 'inherit' });
+      var xl = svgEl('text', { x: x(idx), y: H - 8, 'text-anchor': 'middle', fill: 'rgba(95,107,125,.95)', 'font-size': '10.5', 'font-family': 'inherit' });
       xl.textContent = shortDate(series[idx].dateKey);
       svg.appendChild(xl);
     }
@@ -95,15 +95,15 @@ TH.charts = (function () {
           x: x(i) - bw / 2, y: y0,
           width: bw, height: Math.max(1.5, y1 - y0),
           rx: Math.min(3, bw / 3),
-          fill: v >= 0 ? 'rgba(52,211,153,.75)' : 'rgba(248,113,113,.75)'
+          fill: v >= 0 ? 'rgba(4,120,87,.7)' : 'rgba(190,18,60,.65)'
         }));
       });
     } else {
       var defs = svgEl('defs');
       var gradId = 'thGrad' + Math.random().toString(36).slice(2, 7);
       var grad = svgEl('linearGradient', { id: gradId, x1: 0, y1: 0, x2: 0, y2: 1 });
-      grad.appendChild(svgEl('stop', { offset: '0%', 'stop-color': 'rgba(45,212,191,.28)' }));
-      grad.appendChild(svgEl('stop', { offset: '100%', 'stop-color': 'rgba(45,212,191,0)' }));
+      grad.appendChild(svgEl('stop', { offset: '0%', 'stop-color': 'rgba(161,98,7,.20)' }));
+      grad.appendChild(svgEl('stop', { offset: '100%', 'stop-color': 'rgba(161,98,7,0)' }));
       defs.appendChild(grad);
       svg.appendChild(defs);
 
@@ -116,18 +116,18 @@ TH.charts = (function () {
       area = line + 'L' + x(series.length - 1).toFixed(1) + ' ' + baseY.toFixed(1) +
         'L' + x(0).toFixed(1) + ' ' + baseY.toFixed(1) + 'Z';
       svg.appendChild(svgEl('path', { d: area, fill: 'url(#' + gradId + ')' }));
-      svg.appendChild(svgEl('path', { d: line, fill: 'none', stroke: '#2dd4bf', 'stroke-width': 2.2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
+      svg.appendChild(svgEl('path', { d: line, fill: 'none', stroke: '#a16207', 'stroke-width': 2.2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round' }));
       var last = series[series.length - 1];
-      svg.appendChild(svgEl('circle', { cx: x(series.length - 1), cy: y(last.cum), r: 3.6, fill: '#2dd4bf', stroke: '#0b0f14', 'stroke-width': 2 }));
+      svg.appendChild(svgEl('circle', { cx: x(series.length - 1), cy: y(last.cum), r: 3.6, fill: '#a16207', stroke: '#ffffff', 'stroke-width': 2 }));
     }
 
     /* tooltip + crosshair */
     var tip = document.createElement('div');
     tip.className = 'chart-tip';
     container.appendChild(tip);
-    var cross = svgEl('line', { y1: padT, y2: H - padB, stroke: 'rgba(232,238,247,.25)', 'stroke-width': 1, visibility: 'hidden' });
+    var cross = svgEl('line', { y1: padT, y2: H - padB, stroke: 'rgba(28,36,51,.3)', 'stroke-width': 1, visibility: 'hidden' });
     svg.appendChild(cross);
-    var dot = svgEl('circle', { r: 4, fill: '#e8eef7', stroke: '#0b0f14', 'stroke-width': 2, visibility: 'hidden' });
+    var dot = svgEl('circle', { r: 4, fill: '#1c2433', stroke: '#ffffff', 'stroke-width': 2, visibility: 'hidden' });
     svg.appendChild(dot);
 
     svg.addEventListener('mousemove', function (e) {

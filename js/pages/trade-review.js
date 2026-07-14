@@ -404,7 +404,7 @@
 
   /* ---------- danger zone ---------- */
   function renderDanger(parent) {
-    var card = ui.el('div', { class: 'card', style: 'border-color:rgba(248,113,113,.25)' });
+    var card = ui.el('div', { class: 'card', style: 'border-color:rgba(190,18,60,.25)' });
     card.appendChild(ui.el('div', { class: 'card-head' }, [
       ui.el('div', {}, [
         ui.el('h2', { class: 'card-title', text: 'Delete trade' }),

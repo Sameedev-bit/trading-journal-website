@@ -280,7 +280,7 @@
 
     var addRow = ui.el('div', { class: 'row', style: 'margin-top:12px' });
     var labelIn = ui.el('input', { type: 'text', placeholder: 'New tag label', maxlength: '24', style: 'width:180px' });
-    var colorIn = ui.el('input', { type: 'color', value: '#2dd4bf' });
+    var colorIn = ui.el('input', { type: 'color', value: '#a16207' });
     function addTag() {
       var v = labelIn.value.trim();
       if (!v) return;
