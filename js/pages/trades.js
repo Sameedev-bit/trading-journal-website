@@ -194,12 +194,25 @@
     var accounts = (store.get('accounts') || []).filter(function (a) { return a.status === 'active'; });
     if (!accounts.length) { ui.toast('Create an account first.', 'err'); return; }
     var body = ui.el('div', { class: 'stack' });
+
+    var presetSel = ui.el('select', {
+      html: Object.keys(calc.BROKER_PRESETS).map(function (k) {
+        return '<option value="' + k + '">' + ui.esc(calc.BROKER_PRESETS[k].label) + '</option>';
+      }).join('')
+    });
+    var presetLab = ui.el('label', { class: 'field' });
+    presetLab.appendChild(ui.el('span', { text: 'Broker / format' }));
+    presetLab.appendChild(presetSel);
+    body.appendChild(presetLab);
+
     var fileIn = ui.el('input', { type: 'file', accept: '.csv,text/csv' });
     var fld = ui.el('label', { class: 'field' }, [ui.el('span', { text: 'CSV file (max 2 MB, first row = headers)' }), fileIn]);
     body.appendChild(fld);
     var zone = ui.el('div', { class: 'stack' });
     body.appendChild(zone);
     var parsed = null;
+
+    function preset() { return calc.BROKER_PRESETS[presetSel.value]; }
 
     fileIn.addEventListener('change', function () {
       var f = fileIn.files && fileIn.files[0];
@@ -213,32 +226,118 @@
           parsed = null;
           return;
         }
-        drawMapping();
+        drawZone();
       };
       reader.readAsText(f);
     });
+    presetSel.addEventListener('change', function () { if (parsed) drawZone(); });
 
-    function drawMapping() {
-      zone.innerHTML = '';
-      zone.appendChild(ui.el('p', { class: 'muted', style: 'font-size:12px;margin:0', text: parsed.rows.length + ' data rows found. Map your columns:' }));
-      var grid = ui.el('div', { class: 'form-grid' });
-      var colOpts = '<option value="-1">— not in file —</option>' + parsed.headers.map(function (h, i) {
-        return '<option value="' + i + '">' + ui.esc(h || ('column ' + (i + 1))) + '</option>';
-      }).join('');
-      IMPORT_FIELDS.forEach(function (fdef) {
-        var sel = ui.el('select', { id: 'map-' + fdef[0], html: colOpts });
-        sel.value = String(guessColumn(parsed.headers, fdef[0]));
-        var lab = ui.el('label', { class: 'field' });
-        lab.appendChild(ui.el('span', { html: fdef[1] + (fdef[2] ? ' <b class="req">*</b>' : '') }));
-        lab.appendChild(sel);
-        grid.appendChild(lab);
-      });
+    function accountPicker(grid) {
       var accSel = ui.el('select', { id: 'map-account', html: accounts.map(function (a) { return '<option value="' + a.id + '">' + ui.esc(a.name) + '</option>'; }).join('') });
       var accLab = ui.el('label', { class: 'field' });
       accLab.appendChild(ui.el('span', { text: 'Import into account' }));
       accLab.appendChild(accSel);
       grid.appendChild(accLab);
-      zone.appendChild(grid);
+    }
+
+    function drawZone() {
+      zone.innerHTML = '';
+      var p = preset();
+      if (p.kind === 'fills') {
+        // executions file: columns are auto-detected, rows get paired into round trips
+        var map = calc.autoMapHeaders(parsed.headers, p.hints);
+        var missing = ['symbol', 'time', 'side', 'qty', 'price'].filter(function (k) { return map[k] === -1; });
+        if (missing.length) {
+          zone.appendChild(ui.el('p', {
+            class: 'field-err', style: 'margin:0',
+            text: 'This file doesn’t look like a ' + p.label + ' — missing column(s): ' + missing.join(', ') + '. Try the Generic format instead.'
+          }));
+          return;
+        }
+        zone.appendChild(ui.el('p', {
+          class: 'muted', style: 'font-size:12px;margin:0',
+          text: parsed.rows.length + ' execution rows detected. They’ll be paired into round-trip trades automatically (scale-ins become one trade with pyramid detection).'
+        }));
+        var grid = ui.el('div', { class: 'form-grid' });
+        accountPicker(grid);
+        zone.appendChild(grid);
+        return;
+      }
+      // trades file: manual mapping grid, pre-filled from the preset's header hints
+      var presetMap = p.hints ? calc.autoMapHeaders(parsed.headers, p.hints) : {};
+      zone.appendChild(ui.el('p', { class: 'muted', style: 'font-size:12px;margin:0', text: parsed.rows.length + ' data rows found. Map your columns:' }));
+      var grid2 = ui.el('div', { class: 'form-grid' });
+      var colOpts = '<option value="-1">— not in file —</option>' + parsed.headers.map(function (h, i) {
+        return '<option value="' + i + '">' + ui.esc(h || ('column ' + (i + 1))) + '</option>';
+      }).join('');
+      IMPORT_FIELDS.forEach(function (fdef) {
+        var sel = ui.el('select', { id: 'map-' + fdef[0], html: colOpts });
+        var fromPreset = presetMap[fdef[0]];
+        sel.value = String(fromPreset !== undefined && fromPreset !== -1 ? fromPreset : guessColumn(parsed.headers, fdef[0]));
+        var lab = ui.el('label', { class: 'field' });
+        lab.appendChild(ui.el('span', { html: fdef[1] + (fdef[2] ? ' <b class="req">*</b>' : '') }));
+        lab.appendChild(sel);
+        grid2.appendChild(lab);
+      });
+      accountPicker(grid2);
+      zone.appendChild(grid2);
+    }
+
+    /* fills-kind import: map → fill rows → pairFills → trades */
+    function importFills(b) {
+      var p = preset();
+      var map = calc.autoMapHeaders(parsed.headers, p.hints);
+      var accountId = ui.qs('#map-account', b).value;
+      var unknownRoots = {};
+      var fills = [], bad = 0;
+      parsed.rows.forEach(function (row) {
+        function cell(field) { return map[field] === -1 ? '' : (row[map[field]] || '').trim(); }
+        var side = calc.parseSide(cell('side'));
+        var qty = parseInt(cell('qty'), 10);
+        var price = parseFloat(String(cell('price')).replace(/[$,]/g, ''));
+        var ts = parseTimeCell(cell('time'));
+        var norm = calc.normalizeSymbol(cell('symbol'));
+        if (!side || !(qty > 0) || isNaN(price) || !ts || !norm.symbol) { bad++; return; }
+        if (!norm.known) unknownRoots[norm.symbol] = true;
+        var comm = parseFloat(String(cell('commission')).replace(/[$,]/g, ''));
+        fills.push({
+          symbol: norm.symbol, ts: ts, side: side, qty: qty, price: price,
+          commission: isNaN(comm) ? 0 : Math.abs(comm),
+          execId: cell('id') || null
+        });
+      });
+      var paired = calc.pairFills(fills);
+      var existing = store.get('trades') || [];
+      var seenIds = {}, seenSig = {};
+      existing.forEach(function (t) {
+        if (t.brokerTradeId) seenIds[t.brokerTradeId] = true;
+        seenSig[t.symbol + '|' + t.entryTime + '|' + t.contracts] = true;
+      });
+      var added = 0, skipped = 0;
+      paired.trades.forEach(function (pt) {
+        var sig = pt.symbol + '|' + pt.entryTime + '|' + pt.contracts;
+        if ((pt.brokerTradeId && seenIds[pt.brokerTradeId]) || seenSig[sig]) { skipped++; return; }
+        seenSig[sig] = true;
+        if (pt.brokerTradeId) seenIds[pt.brokerTradeId] = true;
+        existing.push({
+          id: store.newId('t'), accountId: accountId,
+          symbol: pt.symbol, direction: pt.direction, contracts: pt.contracts,
+          entryPrice: pt.entryPrice, exitPrice: pt.exitPrice,
+          entryTime: pt.entryTime, exitTime: pt.exitTime, dateKey: pt.dateKey,
+          commissions: pt.commissions, riskAmount: null,
+          source: 'csv', brokerTradeId: pt.brokerTradeId,
+          entryFillCount: pt.entryFillCount, tagIds: [], notes: '', checklist: null
+        });
+        added++;
+      });
+      store.save('trades', existing);
+      var msg = added + ' trades imported from ' + fills.length + ' executions · ' + skipped + ' duplicates skipped' +
+        (bad ? ' · ' + bad + ' unreadable rows' : '') +
+        (paired.open.length ? ' · ' + paired.open.length + ' still-open position(s) not imported' : '');
+      var roots = Object.keys(unknownRoots);
+      if (roots.length) msg += ' · unknown symbols (' + roots.join(', ') + ') — P/L may be off';
+      ui.toast(msg, added ? 'ok' : 'err');
+      renderList();
     }
 
     ui.modal({
@@ -251,6 +350,11 @@
           label: 'Import trades', kind: 'primary',
           onClick: function (b) {
             if (!parsed) { ui.toast('Pick a CSV file first.', 'err'); return false; }
+            if (preset().kind === 'fills') {
+              if (!ui.qs('#map-account', b)) { ui.toast('This file doesn’t match the selected format.', 'err'); return false; }
+              importFills(b);
+              return;
+            }
             var map = {};
             IMPORT_FIELDS.forEach(function (fdef) {
               map[fdef[0]] = parseInt(ui.qs('#map-' + fdef[0], b).value, 10);
@@ -267,12 +371,15 @@
             });
 
             var added = 0, skipped = 0, bad = 0;
+            var unknownRoots = {};
             parsed.rows.forEach(function (row) {
               function cell(field) { return map[field] === -1 ? '' : (row[map[field]] || '').trim(); }
               var entryTime = parseTimeCell(cell('entryTime'));
-              var symbol = cell('symbol').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
-              var entryPrice = parseFloat(cell('entryPrice'));
-              var exitPrice = parseFloat(cell('exitPrice'));
+              var norm = calc.normalizeSymbol(cell('symbol'));
+              var symbol = norm.symbol.replace(/[^A-Z0-9]/g, '').slice(0, 6);
+              if (symbol && !norm.known) unknownRoots[symbol] = true;
+              var entryPrice = parseFloat(String(cell('entryPrice')).replace(/[$,]/g, ''));
+              var exitPrice = parseFloat(String(cell('exitPrice')).replace(/[$,]/g, ''));
               if (!symbol || !entryTime || isNaN(entryPrice) || isNaN(exitPrice)) { bad++; return; }
               var contracts = parseInt(cell('contracts'), 10);
               if (!(contracts > 0)) contracts = 1;
@@ -301,7 +408,10 @@
               added++;
             });
             store.save('trades', existing);
-            ui.toast(added + ' imported · ' + skipped + ' duplicates skipped' + (bad ? ' · ' + bad + ' unreadable rows' : ''), added ? 'ok' : 'err');
+            var doneMsg = added + ' imported · ' + skipped + ' duplicates skipped' + (bad ? ' · ' + bad + ' unreadable rows' : '');
+            var roots = Object.keys(unknownRoots);
+            if (roots.length) doneMsg += ' · unknown symbols (' + roots.join(', ') + ') — P/L may be off';
+            ui.toast(doneMsg, added ? 'ok' : 'err');
             renderList();
           }
         }
@@ -438,5 +548,9 @@
   document.addEventListener('DOMContentLoaded', function () {
     ui = TH.ui; calc = TH.calc; store = TH.store;
     render();
+    if (/[?&]import=1/.test(location.search)) {
+      history.replaceState(null, '', location.pathname);
+      openImportModal();
+    }
   });
 })();

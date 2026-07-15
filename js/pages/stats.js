@@ -334,6 +334,47 @@
     build(root);
   }
 
+  /* first-steps checklist shown on fresh (non-demo) journals until dismissed */
+  function renderGettingStarted(root) {
+    var settings = store.get('settings') || {};
+    if (!settings.gettingStarted) return;
+    var trades = store.get('trades') || [];
+    var accounts = (store.get('accounts') || []).filter(function (a) { return a.status === 'active'; });
+    var steps = [
+      { label: 'Add your trading account(s)', done: accounts.length > 1 || accounts.some(function (a) { return a.name !== 'My Account'; }), href: 'accounts.html' },
+      { label: 'Set prop-firm rules (if you trade evals)', done: accounts.some(function (a) { return a.rules && a.rules.startingBalance != null; }), href: 'compliance.html' },
+      { label: 'Log or import your first trade', done: trades.length > 0, href: 'manual-entry.html' },
+      { label: 'Write your first pre-market prep', done: (store.get('prep') || []).length > 0, href: 'prep-review.html' }
+    ];
+    var doneCount = steps.filter(function (s) { return s.done; }).length;
+    var card = ui.el('div', { class: 'card', style: 'border-color:rgba(161,98,7,.3)' });
+    var head = ui.el('div', { class: 'card-head' });
+    head.appendChild(ui.el('div', {}, [
+      ui.el('h2', { class: 'card-title', text: 'Getting started — ' + doneCount + ' of ' + steps.length }),
+      ui.el('p', { class: 'card-sub', text: 'A journal only works if it gets fed. Four steps and you’re rolling.' })
+    ]));
+    head.appendChild(ui.el('button', {
+      class: 'btn small ghost', text: 'Dismiss',
+      onclick: function () {
+        var s = store.get('settings') || {};
+        s.gettingStarted = false;
+        store.save('settings', s);
+        card.remove();
+      }
+    }));
+    card.appendChild(head);
+    var list = ui.el('div', { class: 'stack', style: 'gap:6px' });
+    steps.forEach(function (s) {
+      list.appendChild(ui.el('a', {
+        class: 'rule-item', href: s.href, style: 'text-decoration:none;color:inherit',
+        html: '<span style="width:20px;flex:none;font-weight:800;color:' + (s.done ? 'var(--green)' : 'var(--faint)') + '">' + (s.done ? '✓' : '○') + '</span>' +
+          '<span class="ri-txt"' + (s.done ? ' style="text-decoration:line-through;color:var(--muted)"' : '') + '>' + ui.esc(s.label) + '</span><span class="faint">›</span>'
+      }));
+    });
+    card.appendChild(list);
+    root.appendChild(card);
+  }
+
   function renderAlerts(root) {
     var trades = store.get('trades') || [];
     var accounts = (store.get('accounts') || []).filter(function (a) { return a.status === 'active'; });
@@ -382,6 +423,7 @@
     var accounts = (store.get('accounts') || []).filter(function (a) { return a.status === 'active'; });
     ui.headStat(String(accounts.length), 'Accounts');
     ui.headStat(String(trades.length), 'Trades');
+    renderGettingStarted(root);
     renderAlerts(root);
     renderFilterBar(root);
     renderKpis(root);

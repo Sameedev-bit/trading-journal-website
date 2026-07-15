@@ -27,6 +27,20 @@ TH.store = (function () {
     return cache[entity];
   }
 
+  /* change listeners (used by the cloud sync layer) + cache invalidation
+     for writes that bypass save(), e.g. remote rows applied by TH.cloud */
+  var changeListeners = [];
+  function onChange(cb) { changeListeners.push(cb); }
+  function notifyChange(entity) {
+    changeListeners.forEach(function (cb) {
+      try { cb(entity); } catch (err) { /* listener's problem */ }
+    });
+  }
+  function invalidate(entity) {
+    if (entity && entity.indexOf('shots:') === 0) return; // shots are read fresh each time
+    delete cache[entity];
+  }
+
   function isQuotaError(err) {
     return err && (err.name === 'QuotaExceededError' || err.name === 'NS_ERROR_DOM_QUOTA_REACHED' || err.code === 22 || err.code === 1014);
   }
@@ -35,6 +49,7 @@ TH.store = (function () {
     cache[entity] = data;
     try {
       localStorage.setItem(key(entity), JSON.stringify(data));
+      notifyChange(entity);
       return { ok: true };
     } catch (err) {
       var msg = isQuotaError(err)
@@ -50,13 +65,18 @@ TH.store = (function () {
   }
 
   /* ---------- seeding / reset ---------- */
-  function seedAll() {
-    var data = TH.seed.generate();
+  function seedAll(mode) {
+    var data = mode === 'fresh' ? TH.seed.generateFresh() : TH.seed.generate();
     ENTITIES.forEach(function (e) {
       if (e === 'meta') return;
       save(e, data[e] !== undefined ? data[e] : []);
     });
-    save('meta', { schemaVersion: SCHEMA_VERSION, seededAt: new Date().toISOString(), lastRenewalSweep: null });
+    save('meta', {
+      schemaVersion: SCHEMA_VERSION,
+      seededAt: new Date().toISOString(),
+      seedMode: mode === 'fresh' ? 'fresh' : 'demo',
+      lastRenewalSweep: null
+    });
   }
 
   function defaultGoals() {
@@ -87,16 +107,18 @@ TH.store = (function () {
     if (!get('goals')) save('goals', defaultGoals());
   }
 
-  function resetToDemo() {
+  function resetTo(mode) {
     var doomed = [];
     for (var i = 0; i < localStorage.length; i++) {
       var k = localStorage.key(i);
-      if (k && k.indexOf('th:') === 0) doomed.push(k);
+      // journal + sync bookkeeping only — the theme preference survives resets
+      if (k && (k.indexOf('th:v1:') === 0 || k === 'th:cloud')) doomed.push(k);
     }
     doomed.forEach(function (k) { localStorage.removeItem(k); });
     cache = {};
-    seedAll();
+    seedAll(mode);
   }
+  function resetToDemo() { resetTo('demo'); }
 
   /* ---------- auto-renew sweep (Expenses feature) ----------
      Any auto-renew subscription whose renewal date has passed generates one
@@ -223,6 +245,7 @@ TH.store = (function () {
     try {
       if (!shots || !shots.length) localStorage.removeItem(shotKey(tradeId));
       else localStorage.setItem(shotKey(tradeId), JSON.stringify(shots));
+      notifyChange('shots:' + tradeId);
       return { ok: true };
     } catch (err) {
       if (TH.ui && TH.ui.toast) {
@@ -248,6 +271,7 @@ TH.store = (function () {
     var trades = (get('trades') || []).filter(function (t) { return t.id !== id; });
     save('trades', trades);
     try { localStorage.removeItem(shotKey(id)); } catch (err) { /* noop */ }
+    notifyChange('shots:' + id);
   }
 
   /* ---------- init ---------- */
@@ -257,7 +281,8 @@ TH.store = (function () {
     if (initialized) return initInfo;
     initialized = true;
     var meta = get('meta');
-    if (!meta || !meta.schemaVersion) seedAll();
+    var firstVisit = !meta || !meta.schemaVersion;
+    if (firstVisit) seedAll();
     meta = get('meta');
     if (meta.schemaVersion < 2) {
       migrateToV2();
@@ -265,6 +290,7 @@ TH.store = (function () {
       save('meta', meta);
     }
     initInfo = {
+      firstVisit: firstVisit,
       renewed: renewalSweep(),
       staleJobs: staleJobSweep()
     };
@@ -273,7 +299,8 @@ TH.store = (function () {
 
   return {
     init: init, get: get, save: save, newId: newId,
-    resetToDemo: resetToDemo,
+    onChange: onChange, invalidate: invalidate,
+    resetTo: resetTo, resetToDemo: resetToDemo,
     startJob: startJob,
     getShots: getShots, saveShots: saveShots,
     getTrade: getTrade, saveTrade: saveTrade, deleteTrade: deleteTrade

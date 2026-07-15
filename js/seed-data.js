@@ -326,6 +326,33 @@ TH.seed = (function () {
     };
   }
 
+  /* Minimal starter dataset for real users: playbook scaffolding and one
+     account, but zero trades/history — the journal starts truly theirs. */
+  function generateFresh() {
+    var demo = generate(); // reuse strategies/tags/goals definitions
+    return {
+      settings: {
+        defaultStrategyId: 'strat-1',
+        workspaceName: 'My Workspace',
+        traderName: 'Trader',
+        lastStatsFilters: null,
+        gettingStarted: true
+      },
+      accounts: [
+        { id: 'acc-main', name: 'My Account', type: 'manual', connectionId: null, brokerAccountRef: null, balance: null, drawdownLimit: null, status: 'active', lastSyncAt: null, rules: null }
+      ],
+      connections: [],
+      trades: [],
+      strategies: demo.strategies,
+      tags: demo.tags,
+      prep: [],
+      subscriptions: [],
+      expenses: [],
+      jobs: [],
+      goals: demo.goals
+    };
+  }
+
   /* Runtime generator for simulated broker syncs / older-trade imports.
      Not seeded — each sync should feel like fresh data. */
   function generateSyncedTrades(connection, accounts, range, countHint) {
@@ -353,5 +380,5 @@ TH.seed = (function () {
     return out;
   }
 
-  return { generate: generate, generateSyncedTrades: generateSyncedTrades, SYMBOLS: SYMBOLS };
+  return { generate: generate, generateFresh: generateFresh, generateSyncedTrades: generateSyncedTrades, SYMBOLS: SYMBOLS };
 })();

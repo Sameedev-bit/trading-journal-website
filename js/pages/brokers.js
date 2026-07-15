@@ -4,7 +4,340 @@
   var ui, calc, store;
   var selectedId = null;
 
-  var PROVIDER_LABEL = { tradovate: 'Tradovate', ninjatrader: 'NinjaTrader' };
+  var PROVIDER_LABEL = {
+    tradovate: 'Tradovate (simulated)', ninjatrader: 'NinjaTrader (simulated)',
+    'tradovate-api': 'Tradovate · Live API', 'projectx-api': 'TopstepX · Live API'
+  };
+
+  /* shared pipeline: normalized fill rows (grouped per broker account) →
+     pairFills → deduped import → tracker accounts + lastSync bookkeeping */
+  function importPairedFills(conn, fills, refPrefix, range) {
+    var byAccount = {};
+    (fills || []).forEach(function (f) {
+      (byAccount[f.accountId] = byAccount[f.accountId] || []).push(f);
+    });
+    var accounts = store.get('accounts') || [];
+    var trades = store.get('trades') || [];
+    var seenIds = {};
+    trades.forEach(function (t) { if (t.brokerTradeId) seenIds[t.brokerTradeId] = true; });
+    var added = 0, openCount = 0;
+    Object.keys(byAccount).forEach(function (brokerAccId) {
+      var ref = refPrefix + brokerAccId;
+      var tracker = accounts.filter(function (a) { return a.brokerAccountRef === ref; })[0];
+      if (!tracker) {
+        var nick = (byAccount[brokerAccId][0] && byAccount[brokerAccId][0].accountName) || ('#' + brokerAccId);
+        tracker = {
+          id: store.newId('acc'), name: conn.name + ' ' + nick, type: 'funded',
+          connectionId: conn.id, brokerAccountRef: ref,
+          balance: null, drawdownLimit: null, status: 'active', lastSyncAt: null, rules: null
+        };
+        accounts.push(tracker);
+      }
+      var rows = byAccount[brokerAccId].map(function (f) {
+        return {
+          symbol: calc.normalizeSymbol(f.symbol).symbol,
+          ts: f.ts, side: f.side, qty: f.qty, price: f.price,
+          commission: f.commission || 0, execId: f.execId
+        };
+      });
+      var paired = calc.pairFills(rows);
+      openCount += paired.open.length;
+      paired.trades.forEach(function (pt) {
+        if (pt.brokerTradeId && seenIds[pt.brokerTradeId]) return;
+        if (pt.brokerTradeId) seenIds[pt.brokerTradeId] = true;
+        trades.push({
+          id: store.newId('t'), accountId: tracker.id,
+          symbol: pt.symbol, direction: pt.direction, contracts: pt.contracts,
+          entryPrice: pt.entryPrice, exitPrice: pt.exitPrice,
+          entryTime: pt.entryTime, exitTime: pt.exitTime, dateKey: pt.dateKey,
+          commissions: pt.commissions, riskAmount: null,
+          source: 'sync', brokerTradeId: pt.brokerTradeId,
+          entryFillCount: pt.entryFillCount, tagIds: [], notes: '', checklist: null
+        });
+        added++;
+      });
+      tracker.lastSyncAt = new Date().toISOString();
+    });
+    var conns = connections();
+    var c = conns.filter(function (x) { return x.id === conn.id; })[0];
+    if (c) c.lastSyncAt = new Date().toISOString();
+    store.save('accounts', accounts);
+    store.save('trades', trades);
+    store.save('connections', conns);
+    recordRealJob(conn, range, added, null);
+    ui.toast(conn.name + ' sync complete — ' + added + ' new trade' + (added === 1 ? '' : 's') +
+      (openCount ? ' · ' + openCount + ' open position(s) skipped' : ''));
+    rerender();
+  }
+
+  /* ---------- real Tradovate API connection (via the Supabase edge proxy) ---------- */
+  function tvToken(connId) {
+    try {
+      var t = JSON.parse(sessionStorage.getItem('th:tv:' + connId));
+      if (t && t.accessToken && (!t.expirationTime || Date.parse(t.expirationTime) > Date.now() + 60000)) return t;
+    } catch (err) { /* fall through */ }
+    return null;
+  }
+  function saveTvToken(connId, t) {
+    try { sessionStorage.setItem('th:tv:' + connId, JSON.stringify(t)); } catch (err) { /* session-only cache */ }
+  }
+
+  function credentialForm(env) {
+    var wrap = ui.el('div', { class: 'stack', style: 'gap:12px' });
+    wrap.innerHTML =
+      '<div class="rule-item" style="align-items:flex-start"><span style="flex:none">ⓘ</span><span class="ri-txt" style="font-size:12px;color:var(--muted)">' +
+      'Requires a live, funded Tradovate account ($1,000+) with their <b>API Access add-on</b>, plus an API key (cid + secret) from Tradovate settings. ' +
+      'Prop-firm eval accounts usually can’t use the API — use <b>Import CSV</b> on the Trades page instead. ' +
+      'Credentials go directly to your own sync function over HTTPS and are never stored — only a short-lived token is kept for this browser session.</span></div>' +
+      '<div class="form-grid">' +
+      '<label class="field"><span>Environment</span><select id="tvEnv"><option value="demo"' + (env === 'demo' ? ' selected' : '') + '>Demo</option><option value="live"' + (env === 'live' ? ' selected' : '') + '>Live</option></select></label>' +
+      '<label class="field"><span>Tradovate username <b class="req">*</b></span><input type="text" id="tvUser" autocomplete="off"></label>' +
+      '<label class="field"><span>Password <b class="req">*</b></span><input type="password" id="tvPass" autocomplete="off"></label>' +
+      '<label class="field"><span>API key cid <b class="req">*</b></span><input type="text" id="tvCid" autocomplete="off" placeholder="number"></label>' +
+      '<label class="field full"><span>API key secret <b class="req">*</b></span><input type="password" id="tvSec" autocomplete="off"></label>' +
+      '</div>';
+    return wrap;
+  }
+
+  function authenticate(body, conn, done) {
+    TH.cloud.callFunction('tradovate-sync', body).then(function (res) {
+      saveTvToken(conn.id, { accessToken: res.accessToken, expirationTime: res.expirationTime });
+      done(null, res);
+    }).catch(function (err) { done(err); });
+  }
+
+  function openTradovateConnect() {
+    if (!TH.cloud || !TH.cloud.configured()) {
+      ui.modal({
+        title: 'Live API sync needs the cloud backend',
+        body: '<p style="color:var(--text-soft)">This deployment runs in local-only mode. Once the Supabase backend is connected and the <span class="mono">tradovate-sync</span> function is deployed (see SETUP-CLOUD.md), live Tradovate sync unlocks here.<br><br>Meanwhile, <b>Import CSV</b> on the Trades page handles Tradovate and NinjaTrader exports — including prop-firm accounts.</p>',
+        actions: [{ label: 'Got it', kind: 'primary' }]
+      });
+      return;
+    }
+    ui.modal({
+      title: 'Connect Tradovate (live API)',
+      wide: true,
+      body: credentialForm('demo'),
+      actions: [
+        { label: 'Cancel', kind: 'ghost' },
+        {
+          label: 'Connect & sync', kind: 'primary',
+          onClick: function (b) {
+            var env = ui.qs('#tvEnv', b).value;
+            var creds = {
+              action: 'auth', env: env,
+              username: ui.qs('#tvUser', b).value.trim(),
+              password: ui.qs('#tvPass', b).value,
+              cid: ui.qs('#tvCid', b).value.trim(),
+              sec: ui.qs('#tvSec', b).value
+            };
+            if (!creds.username || !creds.password || !creds.cid || !creds.sec) {
+              ui.toast('All four credential fields are required.', 'err');
+              return false;
+            }
+            var list = connections();
+            var conn = {
+              id: store.newId('conn'), name: 'Tradovate (' + env + ')',
+              provider: 'tradovate-api', mode: env,
+              status: 'connected', lastSyncAt: null, createdAt: new Date().toISOString()
+            };
+            ui.toast('Connecting to Tradovate…', 'info');
+            authenticate(creds, conn, function (err) {
+              if (err) { ui.toast(err.message || 'Tradovate sign-in failed', 'err'); return; }
+              list.push(conn);
+              store.save('connections', list);
+              selectedId = conn.id;
+              ui.toast('Connected — pulling your accounts and recent fills…');
+              realSync(conn, calc.addDays(calc.todayKey(), -30));
+            });
+          }
+        }
+      ]
+    });
+  }
+
+  function ensureTvToken(conn, cb) {
+    var t = tvToken(conn.id);
+    if (t) { cb(t.accessToken); return; }
+    ui.modal({
+      title: 'Session expired — sign in to Tradovate again',
+      wide: true,
+      body: credentialForm(conn.mode),
+      actions: [
+        { label: 'Cancel', kind: 'ghost' },
+        {
+          label: 'Sign in', kind: 'primary',
+          onClick: function (b) {
+            authenticate({
+              action: 'auth', env: ui.qs('#tvEnv', b).value,
+              username: ui.qs('#tvUser', b).value.trim(),
+              password: ui.qs('#tvPass', b).value,
+              cid: ui.qs('#tvCid', b).value.trim(),
+              sec: ui.qs('#tvSec', b).value
+            }, conn, function (err) {
+              if (err) { ui.toast(err.message || 'Sign-in failed', 'err'); return; }
+              cb(tvToken(conn.id).accessToken);
+            });
+          }
+        }
+      ]
+    });
+  }
+
+  function recordRealJob(conn, range, count, error) {
+    var jobs = store.get('jobs') || [];
+    jobs.unshift({
+      id: store.newId('job'), connectionId: conn.id, kind: 'sync',
+      range: range, countHint: null,
+      status: error ? 'failed' : 'done', progress: 100,
+      resultCount: count, error: error || null,
+      createdAt: new Date().toISOString(), finishedAt: new Date().toISOString()
+    });
+    if (jobs.length > 25) jobs.length = 25;
+    store.save('jobs', jobs);
+  }
+
+  /* Tradovate: pull fills since a date, then run the shared import pipeline */
+  function realSync(conn, sinceKey) {
+    ensureTvToken(conn, function (token) {
+      ui.toast('Syncing fills from Tradovate…', 'info');
+      TH.cloud.callFunction('tradovate-sync', {
+        action: 'fills', env: conn.mode, token: token,
+        since: sinceKey ? sinceKey + 'T00:00:00Z' : null
+      }).then(function (res) {
+        importPairedFills(conn, res.fills || [], 'TVAPI-', { from: sinceKey || calc.todayKey(), to: calc.todayKey() });
+      }).catch(function (err) {
+        recordRealJob(conn, { from: sinceKey || calc.todayKey(), to: calc.todayKey() }, 0, err.message);
+        ui.toast(err.message || 'Tradovate sync failed', 'err');
+        rerender();
+      });
+    });
+  }
+
+  /* ---------- TopstepX / ProjectX (the prop-trader API) ---------- */
+  function pxToken(connId) {
+    try {
+      var t = JSON.parse(sessionStorage.getItem('th:px:' + connId));
+      if (t && t.token && (!t.exp || t.exp > Date.now() + 60000)) return t.token;
+    } catch (err) { /* fall through */ }
+    return null;
+  }
+  function savePxToken(connId, token) {
+    try { sessionStorage.setItem('th:px:' + connId, JSON.stringify({ token: token, exp: Date.now() + 23 * 3600000 })); }
+    catch (err) { /* session-only cache */ }
+  }
+  function pxCredentialForm() {
+    var wrap = ui.el('div', { class: 'stack', style: 'gap:12px' });
+    wrap.innerHTML =
+      '<div class="rule-item" style="align-items:flex-start"><span style="flex:none">ⓘ</span><span class="ri-txt" style="font-size:12px;color:var(--muted)">' +
+      'Works with <b>Topstep prop accounts</b> — evals and funded. You need API access enabled on your TopstepX subscription, ' +
+      'then generate an API key in TopstepX → Settings → API. Your username + key go directly to your own sync function over HTTPS; ' +
+      'only the 24-hour session token is kept for this browser session.</span></div>' +
+      '<div class="form-grid">' +
+      '<label class="field"><span>TopstepX username <b class="req">*</b></span><input type="text" id="pxUser" autocomplete="off"></label>' +
+      '<label class="field"><span>API key <b class="req">*</b></span><input type="password" id="pxKey" autocomplete="off"></label>' +
+      '</div>';
+    return wrap;
+  }
+  function pxAuth(username, apiKey, conn, done) {
+    TH.cloud.callFunction('projectx-sync', { action: 'auth', username: username, apiKey: apiKey })
+      .then(function (res) { savePxToken(conn.id, res.token); done(null); })
+      .catch(function (err) { done(err); });
+  }
+  function ensurePxToken(conn, cb) {
+    var t = pxToken(conn.id);
+    if (t) { cb(t); return; }
+    ui.modal({
+      title: 'Sign in to TopstepX again',
+      wide: true,
+      body: pxCredentialForm(),
+      actions: [
+        { label: 'Cancel', kind: 'ghost' },
+        {
+          label: 'Sign in', kind: 'primary',
+          onClick: function (b) {
+            var u = ui.qs('#pxUser', b).value.trim(), k = ui.qs('#pxKey', b).value.trim();
+            if (!u || !k) { ui.toast('Username and API key are required.', 'err'); return false; }
+            pxAuth(u, k, conn, function (err) {
+              if (err) { ui.toast(err.message || 'Sign-in failed', 'err'); return; }
+              cb(pxToken(conn.id));
+            });
+          }
+        }
+      ]
+    });
+  }
+  function pxSync(conn, sinceKey) {
+    ensurePxToken(conn, function (token) {
+      ui.toast('Syncing trades from TopstepX…', 'info');
+      TH.cloud.callFunction('projectx-sync', { action: 'accounts', token: token }).then(function (accRes) {
+        var pxAccounts = accRes.accounts || [];
+        if (!pxAccounts.length) throw new Error('No active TopstepX accounts found.');
+        var since = (sinceKey || calc.addDays(calc.todayKey(), -30)) + 'T00:00:00Z';
+        return Promise.all(pxAccounts.map(function (a) {
+          return TH.cloud.callFunction('projectx-sync', { action: 'trades', token: token, accountId: a.id, since: since })
+            .then(function (r) {
+              return (r.fills || []).map(function (f) { f.accountName = a.name; return f; });
+            });
+        }));
+      }).then(function (lists) {
+        var fills = [];
+        lists.forEach(function (l) { fills = fills.concat(l); });
+        importPairedFills(conn, fills, 'PX-', { from: sinceKey || calc.addDays(calc.todayKey(), -30), to: calc.todayKey() });
+      }).catch(function (err) {
+        recordRealJob(conn, { from: sinceKey || calc.todayKey(), to: calc.todayKey() }, 0, err.message);
+        ui.toast(err.message || 'TopstepX sync failed', 'err');
+        rerender();
+      });
+    });
+  }
+  function openTopstepConnect() {
+    if (!TH.cloud || !TH.cloud.configured()) {
+      ui.modal({
+        title: 'Live API sync needs the cloud backend',
+        body: '<p style="color:var(--text-soft)">This deployment runs in local-only mode. Once the Supabase backend is connected and the <span class="mono">projectx-sync</span> function is deployed (see SETUP-CLOUD.md), live TopstepX sync unlocks here.<br><br>Meanwhile, <b>Import from your platform</b> handles TopstepX, Rithmic, NinjaTrader and Tradovate exports.</p>',
+        actions: [{ label: 'Got it', kind: 'primary' }]
+      });
+      return;
+    }
+    ui.modal({
+      title: 'Connect TopstepX (live API)',
+      wide: true,
+      body: pxCredentialForm(),
+      actions: [
+        { label: 'Cancel', kind: 'ghost' },
+        {
+          label: 'Connect & sync', kind: 'primary',
+          onClick: function (b) {
+            var u = ui.qs('#pxUser', b).value.trim(), k = ui.qs('#pxKey', b).value.trim();
+            if (!u || !k) { ui.toast('Username and API key are required.', 'err'); return false; }
+            var list = connections();
+            var conn = {
+              id: store.newId('conn'), name: 'TopstepX',
+              provider: 'projectx-api', mode: 'live',
+              status: 'connected', lastSyncAt: null, createdAt: new Date().toISOString()
+            };
+            ui.toast('Connecting to TopstepX…', 'info');
+            pxAuth(u, k, conn, function (err) {
+              if (err) { ui.toast(err.message || 'TopstepX sign-in failed', 'err'); return; }
+              list.push(conn);
+              store.save('connections', list);
+              selectedId = conn.id;
+              ui.toast('Connected — pulling your accounts and recent trades…');
+              pxSync(conn, calc.addDays(calc.todayKey(), -30));
+            });
+          }
+        }
+      ]
+    });
+  }
+
+  /* provider-aware sync dispatch */
+  function providerSync(conn, sinceKey) {
+    if (conn.provider === 'projectx-api') pxSync(conn, sinceKey);
+    else realSync(conn, sinceKey);
+  }
 
   function connections() { return store.get('connections') || []; }
   function selected() {
@@ -202,9 +535,17 @@
 
     var actions = ui.el('div', { class: 'row', style: 'margin-top:14px' });
     var today = calc.todayKey();
+    var isRealApi = conn.provider === 'tradovate-api' || conn.provider === 'projectx-api';
     actions.appendChild(ui.el('button', {
       class: 'btn primary', text: '⟳ Sync recent trades',
-      onclick: function () { runJob(conn, 'sync', { from: calc.addDays(today, -2), to: today }, 2 + Math.floor(Math.random() * 4)); }
+      onclick: function () {
+        if (isRealApi) {
+          var since = conn.lastSyncAt ? conn.lastSyncAt.slice(0, 10) : calc.addDays(today, -30);
+          providerSync(conn, since);
+        } else {
+          runJob(conn, 'sync', { from: calc.addDays(today, -2), to: today }, 2 + Math.floor(Math.random() * 4));
+        }
+      }
     }));
     actions.appendChild(ui.el('button', { class: 'btn', text: 'Rename', onclick: function () { renameConnection(conn); } }));
     actions.appendChild(ui.el('button', {
@@ -238,7 +579,8 @@
           ui.toast('Pick a valid from/to range.', 'err');
           return;
         }
-        runJob(conn, 'import', { from: fromIn.value, to: toIn.value }, 4 + Math.floor(Math.random() * 9));
+        if (conn.provider === 'tradovate-api' || conn.provider === 'projectx-api') providerSync(conn, fromIn.value);
+        else runJob(conn, 'import', { from: fromIn.value, to: toIn.value }, 4 + Math.floor(Math.random() * 9));
       }
     }));
     imp.appendChild(form);
@@ -306,6 +648,18 @@
     ui.headStat(String(conns.length), 'Connections');
     ui.headStat(String(allLinked.length), 'Linked accounts');
 
+    /* prop-first guidance */
+    var guide = ui.el('div', {
+      class: 'card', style: 'padding:12px 16px'
+    });
+    guide.innerHTML =
+      '<div class="row between"><div style="font-size:12.5px;color:var(--text-soft)">' +
+      '<b>Trading a prop account?</b> File import is the reliable path — export from TopstepX, Rithmic R|Trader, ' +
+      'NinjaTrader 8 or Tradovate and drop it in; executions are paired into trades automatically. ' +
+      'Topstep traders can also <b>sync live</b> with the TopstepX API.</div>' +
+      '<a class="btn small" href="trades.html?import=1">Open importer</a></div>';
+    root.appendChild(guide);
+
     var kpis = ui.el('div', { class: 'kpis' });
     kpis.innerHTML =
       '<div class="kpi"><div class="k-label">Broker connections</div><div class="k-value">' + conns.length + '</div><div class="k-sub">Broker logins connected to this workspace.</div></div>' +
@@ -320,7 +674,26 @@
         ui.el('h2', { class: 'card-title', text: 'Connection switcher' }),
         ui.el('p', { class: 'card-sub', text: 'Pick a broker tile to control the workspace below.' })
       ]),
-      ui.el('button', { class: 'btn primary', text: '+ Add broker connection', onclick: openAddConnection })
+      ui.el('div', { class: 'row', style: 'gap:6px' }, [
+        ui.el('a', {
+          class: 'btn primary', href: 'trades.html?import=1',
+          title: 'TopstepX, Rithmic R|Trader, NinjaTrader 8 and Tradovate exports — works for every prop account',
+          text: '⇪ Import from your platform'
+        }),
+        ui.el('button', {
+          class: 'btn',
+          text: '⚡ Connect TopstepX API',
+          title: 'Live sync for Topstep prop accounts (needs the cloud backend + your TopstepX API key)',
+          onclick: openTopstepConnect
+        }),
+        ui.el('button', {
+          class: 'btn ghost',
+          text: 'Tradovate API',
+          title: 'For personal funded Tradovate accounts with their API add-on',
+          onclick: openTradovateConnect
+        }),
+        ui.el('button', { class: 'btn ghost', text: '+ Simulated', title: 'Add a demo connection with sample data', onclick: openAddConnection })
+      ])
     ]));
     var tiles = ui.el('div', { class: 'conn-tiles' });
     if (!conns.length) {

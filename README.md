@@ -1,8 +1,8 @@
 # TradeHarbor — Trading Journal for Futures & Prop Traders
 
-TradeHarbor is a fully client-side trading journal built with plain HTML, CSS and JavaScript.
-No build step, no dependencies, no server — open it in a browser and it works, with a realistic
-demo dataset preloaded.
+TradeHarbor is a local-first trading journal built with plain HTML, CSS and JavaScript — no
+build step, no framework. It works fully offline in the browser (installable as a PWA), and can
+optionally sync journals across devices with a free Supabase backend (see `SETUP-CLOUD.md`).
 
 ## Run it
 
@@ -27,14 +27,26 @@ Opening `index.html` directly from disk (`file://`) also works.
 | **Prop Rules** *(new)* | Per-account prop-firm compliance: trailing/static drawdown floor & buffer, daily loss limit, profit-target progress, consistency-rule score, breach alerts (also surfaced on Stats) |
 | **Insights** *(new)* | Expectancy, avg win/loss, payoff ratio, median hold; P/L by hour, weekday, symbol, hold time and tag; P/L by emotion, confidence calibration, cost-of-mistakes |
 | **Psychology** *(new)* | Confidence rating (1–5), emotion tags and mistake tags on every trade review — feeding the Insights breakdowns |
-| **CSV import/export** *(new)* | Column-mapping CSV importer with dedupe; one-click export of filtered trades and expenses |
+| **CSV import/export** | Broker presets (TopstepX, Rithmic R|Trader, NinjaTrader 8 Trade Performance / Executions, Tradovate fills) with automatic **fill-pairing into round-trip trades**, symbol normalization (`ESU6`, `CON.F.US.EP.U25` → ES) across 40+ futures contracts, column mapping, dedupe; one-click exports |
 | **Monthly Report** *(new)* | Printable month-end summary (KPIs, calendar, breakdowns, compliance, prep adherence) via `window.print()` |
 | **Goals & streaks** *(new)* | Process goals (recap daily, prep daily, respect the stop, max trades/day) with current/best streaks |
 | **Manual Entry** | Hand-log trades with a live derived P/L, points and R preview |
-| **Broker Connections** | Simulated Tradovate/NinjaTrader connections: sync recent trades, import older ranges as async jobs with a persistent history log, linked-accounts table with distance-to-drawdown |
+| **Broker Connections** | **Live TopstepX (ProjectX) API sync for prop accounts** and Tradovate API sync for personal funded accounts — both via stateless Supabase edge proxies (`supabase/functions/`, short-lived tokens, session-only) — plus simulated demo connections; linked-accounts table with distance-to-drawdown |
 | **Accounts** | Tracker account CRUD (eval / funded / practice / manual) with archive-not-delete safety |
 
 Light **and dark themes** — toggle in the sidebar footer, persists in `th:theme`.
+
+**Real-app layer** *(v3)*:
+- **Accounts & sync** — optional sign-in (email magic link / Google) via Supabase; per-entity
+  last-write-wins sync with offline queue; Account & Sync page with status, manual sync, and
+  cloud-copy deletion. Ships in local-only mode until `js/cloud-config.js` is filled in
+  (`SETUP-CLOUD.md` walks through the 10-minute setup; `supabase/schema.sql` has the RLS schema).
+- **PWA** — installable, offline app shell (`manifest.webmanifest`, `sw.js` — bump
+  `CACHE_VERSION` when deploying changes).
+- **Onboarding** — first-visit choice of demo data vs fresh journal, plus a getting-started
+  checklist; "Data & reset" in the sidebar switches modes anytime.
+- **Legal** — `privacy.html` and `terms.html` (drafts — get professional review before charging).
+- **CI** — `tests/run.js` (54 assertions) runs on every push via GitHub Actions.
 
 ## How it works
 

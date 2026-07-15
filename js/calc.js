@@ -3,8 +3,143 @@ window.TH = window.TH || {};
 TH.calc = (function () {
   'use strict';
 
-  var POINT_VALUES = { ES: 50, MES: 5, NQ: 20, MNQ: 2 };
+  /* $ per 1.0 price point, standard quoting — majors + micros */
+  var POINT_VALUES = {
+    // equity indices
+    ES: 50, MES: 5, NQ: 20, MNQ: 2, YM: 5, MYM: 0.5, RTY: 50, M2K: 5,
+    // energy
+    CL: 1000, MCL: 100, QM: 500, NG: 10000, QG: 2500, RB: 42000, HO: 42000,
+    // metals
+    GC: 100, MGC: 10, SI: 5000, SIL: 1000, HG: 25000, MHG: 2500, PL: 50,
+    // treasuries
+    ZB: 1000, ZN: 1000, ZF: 1000, ZT: 2000, UB: 1000, TN: 1000,
+    // grains
+    ZC: 50, ZS: 50, ZW: 50, ZL: 600, ZM: 100,
+    // fx
+    '6E': 125000, '6B': 62500, '6A': 100000, '6C': 100000, '6J': 12500000, '6S': 125000,
+    M6E: 12500, M6A: 10000, M6B: 6250,
+    // crypto
+    BTC: 5, MBT: 0.1, ETH: 50, MET: 0.1
+  };
   var BE_BAND = 0.5; // |net| <= $0.50 counts as breakeven
+
+  /* platform-specific product codes → canonical roots (ProjectX/CQG style) */
+  var SYMBOL_ALIASES = {
+    EP: 'ES', ENQ: 'NQ', MNQ: 'MNQ', MES: 'MES', // CME index (EP/ENQ are CQG codes)
+    YM2: 'YM', MYM2: 'MYM',
+    CLE: 'CL', MCLE: 'MCL', NGE: 'NG',
+    GCE: 'GC', MGC2: 'MGC', SIE: 'SI',
+    EU6: '6E', GBP6: '6B', JY6: '6J', AD6: '6A', CD6: '6C',
+    ZBE: 'ZB', ZNE: 'ZN'
+  };
+
+  /* "ESU6", "ESU2026", "ES 09-26", "ES SEP26", "MESZ5", "CON.F.US.EP.U25"
+     → {symbol:'ES'|'MES'|…, known:true} */
+  var MONTH_CODES = 'FGHJKMNQUVXZ';
+  function normalizeSymbol(raw) {
+    if (!raw) return { symbol: '', known: false };
+    var s = String(raw).toUpperCase().trim();
+    // dotted contract ids (ProjectX): CON.F.US.EP.U25 → product token before the expiry part
+    if (s.indexOf('.') !== -1) {
+      var toks = s.split('.').filter(Boolean);
+      // drop a trailing expiry-looking token (month code + digits)
+      if (toks.length > 1 && /^[FGHJKMNQUVXZ]?\d{1,4}$/.test(toks[toks.length - 1])) toks.pop();
+      s = toks[toks.length - 1] || s;
+    }
+    // drop expiry tokens after whitespace: "ES 09-26", "ES SEP26", "ES DEC 2026"
+    var parts = s.split(/\s+/);
+    if (parts.length > 1 && /^(\d{2}-\d{2,4}|[A-Z]{3}\.?\s?\d{2,4}|\d{4})$/.test(parts.slice(1).join(' '))) {
+      s = parts[0];
+    } else {
+      s = parts[0];
+    }
+    if (SYMBOL_ALIASES[s]) return { symbol: SYMBOL_ALIASES[s], known: true };
+    if (POINT_VALUES[s] !== undefined) return { symbol: s, known: true };
+    // strip trailing month-code + year digits: ESU6, ESU26, MESZ2026
+    var m = s.match(/^([A-Z0-9]+?)([FGHJKMNQUVXZ])(\d{1,4})$/);
+    if (m && MONTH_CODES.indexOf(m[2]) !== -1 && POINT_VALUES[m[1]] !== undefined) {
+      return { symbol: m[1], known: true };
+    }
+    // strip trailing digits only (e.g. "ES1")
+    var d = s.match(/^([A-Z0-9]*[A-Z])(\d{1,4})$/);
+    if (d && POINT_VALUES[d[1]] !== undefined) return { symbol: d[1], known: true };
+    return { symbol: s, known: POINT_VALUES[s] !== undefined };
+  }
+
+  /* Pair raw executions into flat-to-flat round-trip trades.
+     fills: [{symbol, ts (ISO), side 'buy'|'sell', qty>0, price, commission?, execId?}]
+     Position flips split into two trades; still-open positions are reported, not emitted. */
+  function pairFills(fills) {
+    var state = {}; // per symbol
+    var trades = [];
+    var sorted = fills.slice().sort(function (a, b) { return a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0; });
+
+    function fresh() {
+      return { pos: 0, dir: null, entrySum: 0, entryQty: 0, exitSum: 0, exitQty: 0, entryFills: 0, comm: 0, firstTs: null, firstId: null };
+    }
+    function emit(sym, st, ts) {
+      if (!st.entryQty || !st.exitQty) return;
+      trades.push({
+        symbol: sym,
+        direction: st.dir,
+        contracts: st.entryQty,
+        entryPrice: +(st.entrySum / st.entryQty).toFixed(6),
+        exitPrice: +(st.exitSum / st.exitQty).toFixed(6),
+        entryTime: st.firstTs,
+        exitTime: ts,
+        dateKey: String(st.firstTs).slice(0, 10),
+        commissions: +st.comm.toFixed(2),
+        riskAmount: null,
+        entryFillCount: st.entryFills,
+        brokerTradeId: st.firstId ? 'PF-' + st.firstId : null
+      });
+    }
+
+    sorted.forEach(function (f) {
+      var st = state[f.symbol] || (state[f.symbol] = fresh());
+      var remaining = f.qty;
+      var signed = f.side === 'buy' ? 1 : -1;
+      var commPerUnit = (f.commission || 0) / f.qty;
+      while (remaining > 0) {
+        if (st.pos === 0) {
+          // opening a new position with everything left in this fill
+          st.dir = signed > 0 ? 'long' : 'short';
+          st.firstTs = st.firstTs === null || st.entryQty === 0 ? f.ts : st.firstTs;
+          st.firstId = st.firstId || f.execId || null;
+          st.entrySum += f.price * remaining;
+          st.entryQty += remaining;
+          st.entryFills += 1;
+          st.comm += commPerUnit * remaining;
+          st.pos = signed * remaining;
+          remaining = 0;
+        } else if ((st.pos > 0) === (signed > 0)) {
+          // adding to the open position
+          st.entrySum += f.price * remaining;
+          st.entryQty += remaining;
+          st.entryFills += 1;
+          st.comm += commPerUnit * remaining;
+          st.pos += signed * remaining;
+          remaining = 0;
+        } else {
+          // reducing / closing (and possibly flipping)
+          var closing = Math.min(remaining, Math.abs(st.pos));
+          st.exitSum += f.price * closing;
+          st.exitQty += closing;
+          st.comm += commPerUnit * closing;
+          st.pos += signed * closing;
+          remaining -= closing;
+          if (st.pos === 0) {
+            emit(f.symbol, st, f.ts);
+            state[f.symbol] = st = fresh();
+          }
+        }
+      }
+    });
+
+    var open = Object.keys(state).filter(function (sym) { return state[sym].pos !== 0; })
+      .map(function (sym) { return { symbol: sym, position: state[sym].pos }; });
+    return { trades: trades, open: open };
+  }
 
   /* ---------- dates ---------- */
   function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -473,8 +608,86 @@ TH.calc = (function () {
     }).join('\r\n');
   }
 
+  /* ---------- broker import presets (pure data + helpers; UI lives in trades.js) ----------
+     kind 'trades': rows are already round-trips.  kind 'fills': rows are executions → pairFills. */
+  var BROKER_PRESETS = {
+    generic: { label: 'Generic CSV (map columns manually)', kind: 'trades', hints: null },
+    'nt8-trades': {
+      label: 'NinjaTrader 8 — Trade Performance export', kind: 'trades',
+      hints: {
+        symbol: ['instrument'], direction: ['market pos.', 'market pos', 'position'],
+        contracts: ['qty', 'quantity'], entryPrice: ['entry price'], exitPrice: ['exit price'],
+        entryTime: ['entry time'], exitTime: ['exit time'], commissions: ['commission'],
+        brokerTradeId: ['trade number', 'trade #']
+      }
+    },
+    'nt8-executions': {
+      label: 'NinjaTrader 8 — Executions export', kind: 'fills',
+      hints: {
+        symbol: ['instrument'], time: ['time'], side: ['b/s', 'action', 'buy/sell'],
+        qty: ['quantity', 'qty'], price: ['price'], commission: ['commission'],
+        id: ['id', 'execution id', 'exec id']
+      }
+    },
+    'tradovate-fills': {
+      label: 'Tradovate — Fills export', kind: 'fills',
+      hints: {
+        symbol: ['contract', 'symbol', 'instrument'], time: ['fill time', 'timestamp', 'time', 'date'],
+        side: ['b/s', 'side', 'action', 'buy/sell'], qty: ['qty', 'quantity', 'filled qty'],
+        price: ['price', 'fill price', 'avg price', 'avg fill price'], commission: ['commission', 'fees'],
+        id: ['fill id', 'id', 'order id']
+      }
+    },
+    'rithmic-orders': {
+      label: 'Rithmic R|Trader — order history export', kind: 'fills',
+      hints: {
+        symbol: ['symbol', 'instrument'],
+        time: ['update time (cst)', 'update time', 'fill time', 'create time', 'time'],
+        side: ['buy/sell', 'b/s', 'side'],
+        qty: ['filled qty', 'qty filled', 'quantity filled', 'filled', 'qty'],
+        price: ['avg fill price', 'fill price', 'price'],
+        commission: ['commission fill rate', 'commission', 'fees'],
+        id: ['order number', 'order id', 'exchange order id', 'basket id']
+      }
+    },
+    'topstepx-trades': {
+      label: 'TopstepX (ProjectX) — trades export', kind: 'fills',
+      hints: {
+        symbol: ['contractname', 'contract name', 'contract', 'symbol', 'contractid', 'contract id'],
+        time: ['creationtimestamp', 'creation timestamp', 'created', 'entered', 'timestamp', 'time'],
+        side: ['side', 'type', 'b/s', 'buy/sell'],
+        qty: ['size', 'qty', 'quantity'],
+        price: ['price', 'fillprice', 'fill price'],
+        commission: ['fees', 'fee', 'commission'],
+        id: ['id', 'tradeid', 'trade id']
+      }
+    }
+  };
+  function autoMapHeaders(headers, hints) {
+    var lower = headers.map(function (h) { return String(h || '').trim().toLowerCase(); });
+    var map = {};
+    Object.keys(hints || {}).forEach(function (field) {
+      map[field] = -1;
+      for (var i = 0; i < hints[field].length; i++) {
+        var at = lower.indexOf(hints[field][i]);
+        if (at !== -1) { map[field] = at; break; }
+      }
+    });
+    return map;
+  }
+  function parseSide(raw) {
+    var s = String(raw || '').trim().toLowerCase();
+    if (s === '0') return 'buy';   // ProjectX side codes
+    if (s === '1') return 'sell';
+    if (/^(b|buy|bot|bought|long)/.test(s)) return 'buy';
+    if (/^(s|sell|sld|sold|short)/.test(s)) return 'sell';
+    return null;
+  }
+
   return {
     POINT_VALUES: POINT_VALUES, EMOTIONS: EMOTIONS, MISTAKES: MISTAKES,
+    BROKER_PRESETS: BROKER_PRESETS, autoMapHeaders: autoMapHeaders, parseSide: parseSide,
+    normalizeSymbol: normalizeSymbol, pairFills: pairFills,
     toDateKey: toDateKey, todayKey: todayKey, keyToDate: keyToDate, addDays: addDays,
     daysBetween: daysBetween, advanceCycle: advanceCycle,
     monthLabel: monthLabel, monthMatrix: monthMatrix, fmtDateKey: fmtDateKey, fmtIso: fmtIso, fmtTime: fmtTime,
