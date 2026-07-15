@@ -6,6 +6,7 @@
 <title>TradeHarbor — Log every trade. Understand your edge.</title>
 <meta name="description" content="TradeHarbor is a trading journal for futures and prop traders: automatic trade sync, multi-account stats, a daily prep &amp; review ritual, strategy playbooks — and expense tracking so your net P&amp;L tells the truth.">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<script>(function(){try{if(localStorage.getItem("th:theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}})()</script>
 <link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/landing.css">
@@ -18,6 +19,7 @@
     <span>Trade<em>Harbor</em></span>
   </a>
   <div class="nav-right">
+    <button class="btn ghost" title="Toggle dark mode" onclick="try{localStorage.setItem('th:theme',document.documentElement.dataset.theme==='dark'?'light':'dark')}catch(e){};location.reload()">◐</button>
     <span class="land-badge">Demo build</span>
     <a class="btn primary" href="app/stats.html">Open the app</a>
   </div>
@@ -44,10 +46,12 @@
       <div class="mock-side">
         <div class="ms-brand"><img src="assets/logo.svg" alt="">TradeHarbor</div>
         <div class="ms-item on">Stats</div>
+        <div class="ms-item new">Insights</div>
         <div class="ms-item">Trades</div>
         <div class="ms-item">Prep &amp; Review</div>
         <div class="ms-item">My Strategy</div>
-        <div class="ms-item new">Expenses</div>
+        <div class="ms-item new">Prop Rules</div>
+        <div class="ms-item">Expenses</div>
         <div class="ms-item">Manual Entry</div>
         <div class="ms-item">Broker Connections</div>
         <div class="ms-item">Accounts</div>
@@ -83,7 +87,7 @@
 
 <section class="features-sec" id="features">
   <h2>Everything a prop trader's journal needs</h2>
-  <p class="sec-sub">Nine connected workspaces — from broker sync to the expense line most journals forget.</p>
+  <p class="sec-sub">Twelve connected workspaces — from broker sync and prop-firm rule tracking to the expense line most journals forget.</p>
   <div class="feat-grid">
     <div class="feat">
       <div class="f-icon">⇄</div>
@@ -115,6 +119,21 @@
       <h3>Expense tracking<span class="f-new">New</span></h3>
       <p>Data feeds, platforms, eval fees, resets — recurring subscriptions auto-log themselves each cycle, one-time costs take seconds. Net P&amp;L after expenses shows what you actually kept.</p>
     </div>
+    <div class="feat spotlight">
+      <div class="f-icon">⛨</div>
+      <h3>Prop-firm rule tracker<span class="f-new">New</span></h3>
+      <p>Trailing drawdown floor, daily loss limit, profit target and the consistency rule — scored live per account, with red alerts the moment a rule breaks.</p>
+    </div>
+    <div class="feat spotlight">
+      <div class="f-icon">◔</div>
+      <h3>Insights &amp; psychology<span class="f-new">New</span></h3>
+      <p>Expectancy, payoff ratio, and your edge by hour, weekday, symbol and hold time — plus what FOMO and revenge trades actually cost, and whether your confidence predicts anything.</p>
+    </div>
+    <div class="feat">
+      <div class="f-icon">⇪</div>
+      <h3>CSV import &amp; export</h3>
+      <p>Bring real trade history in with a column-mapping importer (duplicates skipped automatically), and export trades or expenses back out any time. Your data is never locked in.</p>
+    </div>
     <div class="feat">
       <div class="f-icon">✎</div>
       <h3>Deep trade review</h3>
@@ -123,12 +142,12 @@
     <div class="feat">
       <div class="f-icon">＋</div>
       <h3>Manual entry &amp; more</h3>
-      <p>Hand-log any trade with a live preview of derived P&amp;L, points and R before you save. Full account management with archive-not-delete safety for history.</p>
+      <p>Hand-log trades with a live derived P&amp;L preview, print a clean monthly report for your mentor, and keep process goals honest with streak tracking.</p>
     </div>
     <div class="feat">
       <div class="f-icon">⛨</div>
       <h3>Your data stays yours</h3>
-      <p>This demo runs 100% in your browser — trades, notes and screenshots live in local storage. Reset to the sample dataset anytime from the sidebar.</p>
+      <p>Runs 100% in your browser — trades, notes and screenshots live in local storage. Light and dark themes, and a one-click reset back to the sample dataset.</p>
     </div>
   </div>
 </section>

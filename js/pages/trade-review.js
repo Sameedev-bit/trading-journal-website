@@ -292,6 +292,79 @@
     }
   }
 
+  /* ---------- psychology ---------- */
+  function renderPsychology(parent) {
+    var card = ui.el('div', { class: 'card' });
+    card.appendChild(ui.el('div', { class: 'card-head' }, [
+      ui.el('div', {}, [
+        ui.el('h2', { class: 'card-title', text: 'Psychology' }),
+        ui.el('p', { class: 'card-sub', text: 'Tag the state of mind and any mistakes — Insights turns these into dollar costs.' })
+      ])
+    ]));
+    var stack = ui.el('div', { class: 'stack', style: 'gap:12px' });
+
+    /* confidence 1-5 */
+    var confWrap = ui.el('div');
+    confWrap.appendChild(ui.el('div', { class: 'k-label', style: 'font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px', text: 'Confidence going in' }));
+    var seg = ui.el('div', { class: 'seg' });
+    [1, 2, 3, 4, 5].forEach(function (n) {
+      var b = ui.el('button', { class: trade.confidence === n ? 'on' : '', text: String(n) });
+      b.addEventListener('click', function () {
+        trade.confidence = trade.confidence === n ? null : n;
+        save();
+        ui.qsa('button', seg).forEach(function (x, i) { x.classList.toggle('on', trade.confidence === i + 1); });
+      });
+      seg.appendChild(b);
+    });
+    confWrap.appendChild(seg);
+    stack.appendChild(confWrap);
+
+    /* emotions */
+    var emoWrap = ui.el('div');
+    emoWrap.appendChild(ui.el('div', { class: 'k-label', style: 'font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px', text: 'Emotions' }));
+    var emoRow = ui.el('div', { class: 'row', style: 'gap:6px' });
+    Object.keys(calc.EMOTIONS).forEach(function (key) {
+      var meta = calc.EMOTIONS[key];
+      var on = (trade.emotions || []).indexOf(key) !== -1;
+      var chip = ui.el('button', { class: 'chip' + (on ? ' on' : '') }, [
+        ui.el('span', { class: 'swatch', style: 'background:' + meta.color }),
+        ui.el('span', { text: meta.label })
+      ]);
+      chip.addEventListener('click', function () {
+        trade.emotions = trade.emotions || [];
+        var i = trade.emotions.indexOf(key);
+        if (i === -1) trade.emotions.push(key); else trade.emotions.splice(i, 1);
+        save();
+        chip.classList.toggle('on');
+      });
+      emoRow.appendChild(chip);
+    });
+    emoWrap.appendChild(emoRow);
+    stack.appendChild(emoWrap);
+
+    /* mistakes */
+    var misWrap = ui.el('div');
+    misWrap.appendChild(ui.el('div', { class: 'k-label', style: 'font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px', text: 'Mistakes (be honest)' }));
+    var misRow = ui.el('div', { class: 'row', style: 'gap:6px' });
+    Object.keys(calc.MISTAKES).forEach(function (key) {
+      var on = (trade.mistakes || []).indexOf(key) !== -1;
+      var chip = ui.el('button', { class: 'chip' + (on ? ' on' : ''), text: calc.MISTAKES[key].label });
+      chip.addEventListener('click', function () {
+        trade.mistakes = trade.mistakes || [];
+        var i = trade.mistakes.indexOf(key);
+        if (i === -1) trade.mistakes.push(key); else trade.mistakes.splice(i, 1);
+        save();
+        chip.classList.toggle('on');
+      });
+      misRow.appendChild(chip);
+    });
+    misWrap.appendChild(misRow);
+    stack.appendChild(misWrap);
+
+    card.appendChild(stack);
+    parent.appendChild(card);
+  }
+
   /* ---------- tags ---------- */
   function renderTags(parent) {
     var tags = store.get('tags') || [];
@@ -347,9 +420,10 @@
     var opts = [
       { key: 'notes', label: 'Notes' },
       { key: 'tags', label: 'Tags' },
-      { key: 'checklist', label: 'Checklist' }
+      { key: 'checklist', label: 'Checklist' },
+      { key: 'psychology', label: 'Psychology' }
     ];
-    var optState = { notes: true, tags: true, checklist: true };
+    var optState = { notes: true, tags: true, checklist: true, psychology: true };
     opts.forEach(function (o) {
       var cb = ui.el('input', { type: 'checkbox' });
       cb.checked = true;
@@ -391,6 +465,11 @@
           if (optState.tags) t.tagIds = (trade.tagIds || []).slice();
           if (optState.checklist && trade.checklist) {
             t.checklist = { strategyId: trade.checklist.strategyId, checked: JSON.parse(JSON.stringify(trade.checklist.checked)) };
+          }
+          if (optState.psychology) {
+            t.confidence = trade.confidence || null;
+            t.emotions = (trade.emotions || []).slice();
+            t.mistakes = (trade.mistakes || []).slice();
           }
         });
         store.save('trades', trades);
@@ -450,6 +529,7 @@
     renderNotes(left);
     renderShots(left);
     renderChecklist(right);
+    renderPsychology(right);
     renderTags(right);
     renderReuse(right);
     cols.appendChild(left);

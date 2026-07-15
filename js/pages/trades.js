@@ -119,6 +119,196 @@
     });
   }
 
+  /* ---------- CSV export ---------- */
+  function exportCsv() {
+    var visible = applyFilters();
+    if (!visible.length) { ui.toast('Nothing to export with these filters.', 'err'); return; }
+    var accIdx = accountIndex();
+    var rows = [['date', 'time', 'account', 'symbol', 'direction', 'contracts', 'entry_price', 'exit_price', 'entry_time', 'exit_time', 'risk', 'commissions', 'gross_pl', 'net_pl', 'r_multiple', 'source', 'broker_trade_id', 'tags', 'notes']];
+    var tagIdx = {};
+    (store.get('tags') || []).forEach(function (t) { tagIdx[t.id] = t.label; });
+    visible.forEach(function (t) {
+      rows.push([
+        t.dateKey, calc.fmtTime(t.entryTime), accIdx[t.accountId] ? accIdx[t.accountId].name : '',
+        t.symbol, t.direction, t.contracts, t.entryPrice, t.exitPrice, t.entryTime, t.exitTime,
+        t.riskAmount != null ? t.riskAmount : '', t.commissions || 0,
+        calc.gross(t).toFixed(2), calc.net(t).toFixed(2),
+        calc.rMultiple(t) !== null ? calc.rMultiple(t).toFixed(2) : '',
+        t.source, t.brokerTradeId || '',
+        (t.tagIds || []).map(function (id) { return tagIdx[id] || ''; }).join('; '),
+        t.notes || ''
+      ]);
+    });
+    var blob = new Blob([calc.csvSerialize(rows)], { type: 'text/csv' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'tradeharbor-trades-' + calc.todayKey() + '.csv';
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+    ui.toast(visible.length + ' trades exported');
+  }
+
+  /* ---------- CSV import ---------- */
+  var IMPORT_FIELDS = [
+    ['symbol', 'Symbol', true], ['direction', 'Direction (long/short)', false],
+    ['contracts', 'Contracts', false], ['entryPrice', 'Entry price', true],
+    ['exitPrice', 'Exit price', true], ['entryTime', 'Entry time', true],
+    ['exitTime', 'Exit time', false], ['riskAmount', 'Risk $', false],
+    ['commissions', 'Commissions $', false], ['brokerTradeId', 'Broker trade ID', false]
+  ];
+
+  function guessColumn(headers, field) {
+    var hints = {
+      symbol: ['symbol', 'instrument', 'contract', 'market'],
+      direction: ['direction', 'side', 'buy/sell', 'b/s'],
+      contracts: ['contracts', 'qty', 'quantity', 'size', 'lots'],
+      entryPrice: ['entry price', 'entryprice', 'buy price', 'boughtprice', 'entry', 'avg entry'],
+      exitPrice: ['exit price', 'exitprice', 'sell price', 'soldprice', 'exit', 'avg exit'],
+      entryTime: ['entry time', 'entrytime', 'bought timestamp', 'open time', 'date', 'entry date'],
+      exitTime: ['exit time', 'exittime', 'sold timestamp', 'close time', 'exit date'],
+      riskAmount: ['risk', 'risk $', 'dollar risk'],
+      commissions: ['commission', 'commissions', 'fees', 'comm'],
+      brokerTradeId: ['id', 'trade id', 'order id', 'position id', 'fill id']
+    };
+    var lower = headers.map(function (h) { return h.trim().toLowerCase(); });
+    var list = hints[field] || [];
+    for (var i = 0; i < list.length; i++) {
+      var at = lower.indexOf(list[i]);
+      if (at !== -1) return at;
+    }
+    return -1;
+  }
+
+  function parseTimeCell(v) {
+    if (!v) return null;
+    var d = new Date(v);
+    if (isNaN(d)) {
+      d = new Date(v.replace(/(\d{1,2})\/(\d{1,2})\/(\d{4})/, '$3-$1-$2'));
+    }
+    if (isNaN(d)) return null;
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':00';
+  }
+
+  function openImportModal() {
+    var accounts = (store.get('accounts') || []).filter(function (a) { return a.status === 'active'; });
+    if (!accounts.length) { ui.toast('Create an account first.', 'err'); return; }
+    var body = ui.el('div', { class: 'stack' });
+    var fileIn = ui.el('input', { type: 'file', accept: '.csv,text/csv' });
+    var fld = ui.el('label', { class: 'field' }, [ui.el('span', { text: 'CSV file (max 2 MB, first row = headers)' }), fileIn]);
+    body.appendChild(fld);
+    var zone = ui.el('div', { class: 'stack' });
+    body.appendChild(zone);
+    var parsed = null;
+
+    fileIn.addEventListener('change', function () {
+      var f = fileIn.files && fileIn.files[0];
+      if (!f) return;
+      if (f.size > 2 * 1024 * 1024) { ui.toast('File is over 2 MB.', 'err'); fileIn.value = ''; return; }
+      var reader = new FileReader();
+      reader.onload = function () {
+        parsed = calc.csvParse(String(reader.result));
+        if (!parsed.headers.length || !parsed.rows.length) {
+          ui.toast('Could not find rows in that file.', 'err');
+          parsed = null;
+          return;
+        }
+        drawMapping();
+      };
+      reader.readAsText(f);
+    });
+
+    function drawMapping() {
+      zone.innerHTML = '';
+      zone.appendChild(ui.el('p', { class: 'muted', style: 'font-size:12px;margin:0', text: parsed.rows.length + ' data rows found. Map your columns:' }));
+      var grid = ui.el('div', { class: 'form-grid' });
+      var colOpts = '<option value="-1">— not in file —</option>' + parsed.headers.map(function (h, i) {
+        return '<option value="' + i + '">' + ui.esc(h || ('column ' + (i + 1))) + '</option>';
+      }).join('');
+      IMPORT_FIELDS.forEach(function (fdef) {
+        var sel = ui.el('select', { id: 'map-' + fdef[0], html: colOpts });
+        sel.value = String(guessColumn(parsed.headers, fdef[0]));
+        var lab = ui.el('label', { class: 'field' });
+        lab.appendChild(ui.el('span', { html: fdef[1] + (fdef[2] ? ' <b class="req">*</b>' : '') }));
+        lab.appendChild(sel);
+        grid.appendChild(lab);
+      });
+      var accSel = ui.el('select', { id: 'map-account', html: accounts.map(function (a) { return '<option value="' + a.id + '">' + ui.esc(a.name) + '</option>'; }).join('') });
+      var accLab = ui.el('label', { class: 'field' });
+      accLab.appendChild(ui.el('span', { text: 'Import into account' }));
+      accLab.appendChild(accSel);
+      grid.appendChild(accLab);
+      zone.appendChild(grid);
+    }
+
+    ui.modal({
+      title: 'Import trades from CSV',
+      wide: true,
+      body: body,
+      actions: [
+        { label: 'Cancel', kind: 'ghost' },
+        {
+          label: 'Import trades', kind: 'primary',
+          onClick: function (b) {
+            if (!parsed) { ui.toast('Pick a CSV file first.', 'err'); return false; }
+            var map = {};
+            IMPORT_FIELDS.forEach(function (fdef) {
+              map[fdef[0]] = parseInt(ui.qs('#map-' + fdef[0], b).value, 10);
+            });
+            var missing = IMPORT_FIELDS.filter(function (fdef) { return fdef[2] && map[fdef[0]] === -1; });
+            if (missing.length) { ui.toast('Map the required column: ' + missing[0][1], 'err'); return false; }
+            var accountId = ui.qs('#map-account', b).value;
+
+            var existing = store.get('trades') || [];
+            var seenIds = {}, seenSig = {};
+            existing.forEach(function (t) {
+              if (t.brokerTradeId) seenIds[t.brokerTradeId] = true;
+              seenSig[t.symbol + '|' + t.entryTime + '|' + t.contracts] = true;
+            });
+
+            var added = 0, skipped = 0, bad = 0;
+            parsed.rows.forEach(function (row) {
+              function cell(field) { return map[field] === -1 ? '' : (row[map[field]] || '').trim(); }
+              var entryTime = parseTimeCell(cell('entryTime'));
+              var symbol = cell('symbol').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+              var entryPrice = parseFloat(cell('entryPrice'));
+              var exitPrice = parseFloat(cell('exitPrice'));
+              if (!symbol || !entryTime || isNaN(entryPrice) || isNaN(exitPrice)) { bad++; return; }
+              var contracts = parseInt(cell('contracts'), 10);
+              if (!(contracts > 0)) contracts = 1;
+              var dirRaw = cell('direction').toLowerCase();
+              var direction = /s|short|sell/.test(dirRaw) && !/long|buy/.test(dirRaw) ? 'short' : 'long';
+              var brokerTradeId = cell('brokerTradeId') || null;
+              var sig = symbol + '|' + entryTime + '|' + contracts;
+              if ((brokerTradeId && seenIds[brokerTradeId]) || seenSig[sig]) { skipped++; return; }
+              seenSig[sig] = true;
+              if (brokerTradeId) seenIds[brokerTradeId] = true;
+              var risk = parseFloat(cell('riskAmount'));
+              var comm = parseFloat(cell('commissions'));
+              existing.push({
+                id: store.newId('t'),
+                accountId: accountId,
+                symbol: symbol, direction: direction, contracts: contracts,
+                entryPrice: entryPrice, exitPrice: exitPrice,
+                entryTime: entryTime,
+                exitTime: parseTimeCell(cell('exitTime')) || entryTime,
+                dateKey: entryTime.slice(0, 10),
+                commissions: isNaN(comm) ? 0 : comm,
+                riskAmount: isNaN(risk) ? null : risk,
+                source: 'csv', brokerTradeId: brokerTradeId,
+                entryFillCount: 1, tagIds: [], notes: '', checklist: null
+              });
+              added++;
+            });
+            store.save('trades', existing);
+            ui.toast(added + ' imported · ' + skipped + ' duplicates skipped' + (bad ? ' · ' + bad + ' unreadable rows' : ''), added ? 'ok' : 'err');
+            renderList();
+          }
+        }
+      ]
+    });
+  }
+
   function render() {
     var root = ui.qs('#pageBody');
     var accounts = (store.get('accounts') || []);
@@ -226,7 +416,11 @@
         ui.el('h2', { class: 'card-title', text: 'Trade list' }),
         ui.el('p', { class: 'card-sub', text: 'Newest first. Open any trade to review notes, screenshots and checklist.' })
       ]),
-      ui.el('a', { class: 'btn', href: 'manual-entry.html', text: '+ Manual entry' })
+      ui.el('div', { class: 'row', style: 'gap:6px' }, [
+        ui.el('button', { class: 'btn small ghost', text: '⇪ Import CSV', onclick: openImportModal }),
+        ui.el('button', { class: 'btn small ghost', text: '⇩ Export CSV', onclick: exportCsv }),
+        ui.el('a', { class: 'btn small', href: 'manual-entry.html', text: '+ Manual entry' })
+      ])
     ]));
     listCard.appendChild(ui.el('div', { class: 'stack', id: 'tradeList', style: 'gap:8px' }));
     root.appendChild(listCard);

@@ -224,12 +224,16 @@ TH.ui = (function () {
   var NAV = [
     { group: 'Overview' },
     { id: 'stats', label: 'Stats', hint: 'KPIs', href: 'stats.html' },
+    { id: 'insights', label: 'Insights', hint: 'Edge', href: 'insights.html', isNew: true },
     { id: 'trades', label: 'Trades', hint: 'List', href: 'trades.html' },
     { group: 'Journal' },
     { id: 'prep-review', label: 'Prep & Review', hint: 'Daily', href: 'prep-review.html' },
     { id: 'strategy', label: 'My Strategy', hint: 'Rules', href: 'strategy.html' },
-    { group: 'Capital' },
-    { id: 'expenses', label: 'Expenses', hint: 'P&L', href: 'expenses.html', isNew: true },
+    { group: 'Risk & Capital' },
+    { id: 'compliance', label: 'Prop Rules', hint: 'Limits', href: 'compliance.html', isNew: true },
+    { id: 'expenses', label: 'Expenses', hint: 'P&L', href: 'expenses.html' },
+    { group: 'Reports' },
+    { id: 'report', label: 'Monthly Report', hint: 'Print', href: 'report.html', isNew: true },
     { group: 'Data' },
     { id: 'manual-entry', label: 'Manual Entry', hint: 'Form', href: 'manual-entry.html' },
     { id: 'brokers', label: 'Broker Connections', hint: 'Sync', href: 'brokers.html' },
@@ -269,8 +273,16 @@ TH.ui = (function () {
         ]);
         sb.appendChild(link);
       });
+      var isDark = document.documentElement.dataset.theme === 'dark';
       var foot = el('div', { class: 'sb-foot' }, [
         el('div', { class: 'sb-links' }, [
+          el('button', {
+            text: isDark ? '☀ Light mode' : '◐ Dark mode',
+            onclick: function () {
+              try { localStorage.setItem('th:theme', isDark ? 'light' : 'dark'); } catch (err) { /* noop */ }
+              location.reload();
+            }
+          }),
           el('button', {
             text: 'Reset demo data', onclick: function () {
               confirmBox({

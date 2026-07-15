@@ -32,7 +32,7 @@
   padding:8px 10px;border-radius:var(--radius-xs);color:var(--muted);
   font:600 13px var(--font);text-decoration:none;transition:all .12s;border:1px solid transparent;
 }
-.sb-link:hover{color:var(--text-soft);background:rgba(28,36,51,.03);text-decoration:none}
+.sb-link:hover{color:var(--text-soft);background:var(--hover-wash);text-decoration:none}
 .sb-link.active{
   color:var(--text);background:linear-gradient(160deg,rgba(161,98,7,.08),rgba(161,98,7,.03));
   border-color:rgba(161,98,7,.25);
@@ -71,7 +71,7 @@
   .page-body{padding:18px 16px 30px}
   .page-head{padding:18px 16px 0}
   .app-foot{padding:16px 16px 20px}
-  .sb-scrim{position:fixed;inset:0;z-index:85;background:rgba(28,36,51,.4)}
+  .sb-scrim{position:fixed;inset:0;z-index:85;background:var(--overlay)}
 }
 
 /* ---------- page head ---------- */
@@ -143,14 +143,14 @@
 .cal-cell.out{opacity:.32;background:transparent}
 .cal-cell.today{border-color:var(--accent)}
 .cal-cell .c-day{font-size:11px;font-weight:700;color:var(--muted)}
-.cal-cell.pos{background:linear-gradient(170deg,rgba(4,120,87,.10),rgba(4,120,87,.03));border-color:rgba(4,120,87,.25)}
-.cal-cell.neg{background:linear-gradient(170deg,rgba(190,18,60,.08),rgba(190,18,60,.03));border-color:rgba(190,18,60,.25)}
+.cal-cell.pos{background:linear-gradient(170deg,var(--cell-pos-bg),var(--cell-pos-bg2));border-color:var(--cell-pos-line)}
+.cal-cell.neg{background:linear-gradient(170deg,var(--cell-neg-bg),var(--cell-neg-bg2));border-color:var(--cell-neg-line)}
 .cal-cell .c-r{font-size:11px;font-weight:800;font-variant-numeric:tabular-nums}
 .cal-cell .c-pl{font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
 .cal-cell .c-n{font-size:10px;color:var(--faint)}
 .cal-week{
   min-height:76px;border-radius:var(--radius-xs);border:1px dashed var(--line-strong);
-  padding:6px 8px;display:flex;flex-direction:column;gap:2px;background:rgba(28,36,51,.02);
+  padding:6px 8px;display:flex;flex-direction:column;gap:2px;background:var(--hover-wash);
 }
 .cal-week .c-day{font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
 @media(max-width:900px){
@@ -258,7 +258,7 @@
 .chk-section{border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px 14px;background:var(--bg2)}
 .chk-section .cs-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
 .chk-section .cs-name{font-size:13px;font-weight:700}
-.chk-section.met{border-color:rgba(4,120,87,.3)}
+.chk-section.met{border-color:var(--cell-pos-line)}
 .chk-item{display:flex;align-items:center;gap:10px;padding:6px 2px;font-size:13px;color:var(--text-soft);cursor:pointer;border-radius:6px}
 .chk-item:hover{background:rgba(255,255,255,.02)}
 .chk-item input{margin:0}
@@ -269,6 +269,17 @@
 .dl>dd{padding:9px 0;margin:0;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
 .dl>dt:last-of-type,.dl>dd:last-of-type{border-bottom:0}
 @media(max-width:560px){.dl{grid-template-columns:1fr}.dl>dt{border-bottom:0;padding-bottom:0}}
+
+/* ---------- print (monthly report) ---------- */
+@media print{
+  .sidebar,.mob-bar,.app-foot,.page-head .head-side,.no-print,.toast-wrap{display:none !important}
+  .app{display:block}
+  body{background:#fff;color:#111}
+  .page-body,.page-head{max-width:none;padding:0 4mm}
+  .card,.kpi{box-shadow:none;border-color:#ddd;background:#fff}
+  .report-sheet{border:0;padding:0}
+  a{color:#111;text-decoration:none}
+}
 
 /* ---------- strategy ---------- */
 .strat-card{border:1px solid var(--line);border-radius:var(--radius-sm);padding:13px 15px;background:var(--bg2);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}

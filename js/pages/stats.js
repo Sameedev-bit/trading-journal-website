@@ -334,11 +334,55 @@
     build(root);
   }
 
+  function renderAlerts(root) {
+    var trades = store.get('trades') || [];
+    var accounts = (store.get('accounts') || []).filter(function (a) { return a.status === 'active'; });
+    var breached = accounts.map(function (a) {
+      var c = calc.compliance(a, trades);
+      return c && c.breaches.length ? { account: a, c: c } : null;
+    }).filter(Boolean);
+    if (breached.length) {
+      var banner = ui.el('div', {
+        class: 'card',
+        style: 'border-color:var(--cell-neg-line);background:linear-gradient(170deg,var(--cell-neg-bg),var(--panel2));padding:12px 16px'
+      });
+      var row = ui.el('div', { class: 'row between' });
+      row.appendChild(ui.el('div', {
+        html: '<b class="pl-neg">⚠ Prop-rule breach</b> <span class="muted" style="font-size:12.5px">— ' +
+          breached.map(function (b) {
+            return ui.esc(b.account.name) + ' (' + b.c.breaches[b.c.breaches.length - 1].type.replace('-', ' ') + ')';
+          }).join(', ') + '</span>'
+      }));
+      row.appendChild(ui.el('a', { class: 'btn small', href: 'compliance.html', text: 'Review rules' }));
+      banner.appendChild(row);
+      root.appendChild(banner);
+    }
+
+    /* goal streak chips */
+    var streaks = calc.goalStreaks(store.get('goals'), {
+      trades: trades, prep: store.get('prep') || [], accounts: accounts
+    });
+    if (streaks.length) {
+      var chipRow = ui.el('div', { class: 'row', style: 'gap:6px' });
+      streaks.forEach(function (s) {
+        chipRow.appendChild(ui.el('a', {
+          class: 'badge ' + (s.current > 0 ? 'teal' : ''),
+          href: 'prep-review.html',
+          style: 'text-decoration:none',
+          title: s.label + ' — best streak ' + s.best + ' days',
+          html: s.icon + ' ' + ui.esc(s.label) + ' · <b>' + s.current + 'd</b>'
+        }));
+      });
+      root.appendChild(chipRow);
+    }
+  }
+
   function build(root) {
     var trades = store.get('trades') || [];
     var accounts = (store.get('accounts') || []).filter(function (a) { return a.status === 'active'; });
     ui.headStat(String(accounts.length), 'Accounts');
     ui.headStat(String(trades.length), 'Trades');
+    renderAlerts(root);
     renderFilterBar(root);
     renderKpis(root);
     renderChart(root);

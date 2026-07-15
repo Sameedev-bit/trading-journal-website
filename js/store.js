@@ -3,10 +3,11 @@ window.TH = window.TH || {};
 TH.store = (function () {
   'use strict';
 
-  var VERSION = 1;
+  var VERSION = 1;            // localStorage key prefix version (stable)
+  var SCHEMA_VERSION = 2;     // data-shape version, bumped by migrations
   var PREFIX = 'th:v' + VERSION + ':';
   var ENTITIES = ['meta', 'settings', 'accounts', 'connections', 'trades',
-    'strategies', 'tags', 'prep', 'subscriptions', 'expenses', 'jobs'];
+    'strategies', 'tags', 'prep', 'subscriptions', 'expenses', 'jobs', 'goals'];
   var cache = {};
 
   function key(entity) { return PREFIX + entity; }
@@ -55,7 +56,35 @@ TH.store = (function () {
       if (e === 'meta') return;
       save(e, data[e] !== undefined ? data[e] : []);
     });
-    save('meta', { schemaVersion: VERSION, seededAt: new Date().toISOString(), lastRenewalSweep: null });
+    save('meta', { schemaVersion: SCHEMA_VERSION, seededAt: new Date().toISOString(), lastRenewalSweep: null });
+  }
+
+  function defaultGoals() {
+    return [
+      { id: 'g-recap', kind: 'recap-daily', enabled: true, param: null },
+      { id: 'g-prep', kind: 'prep-daily', enabled: true, param: null },
+      { id: 'g-stop', kind: 'respect-stop', enabled: true, param: null },
+      { id: 'g-max', kind: 'max-trades', enabled: true, param: 3 }
+    ];
+  }
+
+  /* v1 → v2: per-account prop-firm rules + goals entity.
+     Psychology fields on trades stay optional (undefined tolerated). */
+  function migrateToV2() {
+    var accounts = get('accounts') || [];
+    accounts.forEach(function (a) {
+      if (a.rules !== undefined) return;
+      a.rules = (a.balance != null || a.drawdownLimit != null) ? {
+        startingBalance: a.balance != null ? Math.round(a.balance / 1000) * 1000 : null,
+        maxDrawdown: (a.balance != null && a.drawdownLimit != null) ? Math.max(0, Math.round(a.balance - a.drawdownLimit)) : null,
+        drawdownType: 'trailing',
+        dailyLossLimit: null,
+        profitTarget: null,
+        consistencyPct: null
+      } : null;
+    });
+    save('accounts', accounts);
+    if (!get('goals')) save('goals', defaultGoals());
   }
 
   function resetToDemo() {
@@ -229,7 +258,12 @@ TH.store = (function () {
     initialized = true;
     var meta = get('meta');
     if (!meta || !meta.schemaVersion) seedAll();
-    // future migrations run here, keyed off meta.schemaVersion
+    meta = get('meta');
+    if (meta.schemaVersion < 2) {
+      migrateToV2();
+      meta.schemaVersion = 2;
+      save('meta', meta);
+    }
     initInfo = {
       renewed: renewalSweep(),
       staleJobs: staleJobSweep()

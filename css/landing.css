@@ -2,7 +2,7 @@
 .land-nav{
   display:flex;align-items:center;justify-content:space-between;gap:16px;
   padding:20px 6vw;border-bottom:1px solid var(--line);
-  position:sticky;top:0;background:rgba(246,244,238,.88);backdrop-filter:blur(10px);z-index:50;
+  position:sticky;top:0;background:var(--nav-glass);backdrop-filter:blur(10px);z-index:50;
 }
 .land-nav .brand{display:flex;align-items:center;gap:11px;text-decoration:none}
 .land-nav .brand img{width:34px;height:34px}
@@ -91,8 +91,8 @@
   font-size:8.5px;font-weight:700;display:flex;align-items:center;justify-content:center;color:var(--muted);
   font-variant-numeric:tabular-nums;
 }
-.mock-cal>div.g{background:rgba(4,120,87,.10);border-color:rgba(4,120,87,.3);color:var(--green)}
-.mock-cal>div.r{background:rgba(190,18,60,.09);border-color:rgba(190,18,60,.3);color:var(--red)}
+.mock-cal>div.g{background:var(--cell-pos-bg);border-color:var(--cell-pos-line);color:var(--green)}
+.mock-cal>div.r{background:var(--cell-neg-bg);border-color:var(--cell-neg-line);color:var(--red)}
 @media(max-width:820px){
   .mock{grid-template-columns:1fr}
   .mock-side{display:none}

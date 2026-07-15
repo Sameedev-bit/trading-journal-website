@@ -211,6 +211,50 @@
       '<div class="kpi"><div class="k-label">Day recaps</div><div class="k-value">' + s.recaps + '</div><div class="k-sub">' + s.premarkets + ' pre-market prep' + (s.premarkets === 1 ? '' : 's') + ' this month.</div></div>';
   }
 
+  var GOAL_LABEL = {
+    'recap-daily': 'Log a day recap every trading day',
+    'prep-daily': 'Pre-market prep before every session',
+    'respect-stop': 'Respect every account’s daily loss limit',
+    'max-trades': 'Stay at or under N trades per day'
+  };
+
+  function openGoalConfig() {
+    var goals = store.get('goals') || [];
+    var body = ui.el('div', { class: 'stack', style: 'gap:10px' });
+    goals.forEach(function (g) {
+      var row = ui.el('div', { class: 'rule-item' });
+      var cb = ui.el('input', { type: 'checkbox' });
+      cb.checked = g.enabled;
+      cb.addEventListener('change', function () { g.enabled = cb.checked; });
+      row.appendChild(cb);
+      row.appendChild(ui.el('span', { class: 'ri-txt', text: GOAL_LABEL[g.kind] || g.kind }));
+      if (g.kind === 'max-trades') {
+        var n = ui.el('input', { type: 'number', min: '1', step: '1', value: g.param || 3, style: 'width:64px' });
+        n.addEventListener('change', function () {
+          var v = parseInt(n.value, 10);
+          if (v > 0) g.param = v;
+        });
+        row.appendChild(n);
+      }
+      body.appendChild(row);
+    });
+    ui.modal({
+      title: 'Configure goals',
+      body: body,
+      actions: [
+        { label: 'Cancel', kind: 'ghost' },
+        {
+          label: 'Save goals', kind: 'primary',
+          onClick: function () {
+            store.save('goals', goals);
+            ui.toast('Goals updated');
+            location.reload();
+          }
+        }
+      ]
+    });
+  }
+
   function rerender() {
     fillKpis();
     drawCalendar(ui.qs('#prepCal'));
@@ -238,6 +282,34 @@
     });
     quick.appendChild(row);
     root.appendChild(quick);
+
+    /* goals & streaks */
+    var goalsCard = ui.el('div', { class: 'card' });
+    goalsCard.appendChild(ui.el('div', { class: 'card-head' }, [
+      ui.el('div', {}, [
+        ui.el('h2', { class: 'card-title', text: 'Goals & streaks' }),
+        ui.el('p', { class: 'card-sub', text: 'Process goals measured over your trading days — consistency you can see.' })
+      ]),
+      ui.el('button', { class: 'btn small ghost', text: 'Configure', onclick: openGoalConfig })
+    ]));
+    var streaks = calc.goalStreaks(store.get('goals'), {
+      trades: store.get('trades') || [],
+      prep: store.get('prep') || [],
+      accounts: store.get('accounts') || []
+    });
+    var gGrid = ui.el('div', { class: 'kpis' });
+    if (!streaks.length) {
+      goalsCard.appendChild(ui.el('p', { class: 'muted', style: 'font-size:13px;margin:0', text: 'All goals are switched off — enable some in Configure.' }));
+    } else {
+      streaks.forEach(function (s) {
+        gGrid.innerHTML +=
+          '<div class="kpi"><div class="k-label">' + s.icon + ' ' + ui.esc(s.label) + '</div>' +
+          '<div class="k-value ' + (s.current > 0 ? 'pl-pos' : '') + '">' + s.current + '<span class="muted" style="font-size:13px"> day' + (s.current === 1 ? '' : 's') + '</span></div>' +
+          '<div class="k-sub">Best streak: ' + s.best + ' of ' + s.days + ' trading days.</div></div>';
+      });
+      goalsCard.appendChild(gGrid);
+    }
+    root.appendChild(goalsCard);
 
     var calCard = ui.el('div', { class: 'card' });
     calCard.appendChild(ui.el('div', { class: 'card-head' }, [

@@ -169,6 +169,8 @@
         '<td class="num">' + tradeCount(a.id) + '</td>' +
         '<td>' + (a.status === 'active' ? '<span class="badge green dot">Active</span>' : '<span class="badge">Archived</span>') + '</td>';
       var actions = ui.el('td', { class: 'right nowrap' });
+      actions.appendChild(ui.el('a', { class: 'btn small ghost', href: 'compliance.html', title: 'Set prop-firm rules for this account', text: 'Rules' }));
+      actions.appendChild(document.createTextNode(' '));
       actions.appendChild(ui.el('button', { class: 'btn small ghost', text: 'Edit', onclick: function () { openEditor(a); } }));
       actions.appendChild(document.createTextNode(' '));
       actions.appendChild(ui.el('button', {

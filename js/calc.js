@@ -262,8 +262,219 @@ TH.calc = (function () {
     };
   }
 
+  /* ---------- psychology constants ---------- */
+  var EMOTIONS = {
+    calm: { label: 'Calm', color: '#047857' },
+    confident: { label: 'Confident', color: '#1e40af' },
+    autopilot: { label: 'Autopilot', color: '#64748b' },
+    anxious: { label: 'Anxious', color: '#b45309' },
+    hesitant: { label: 'Hesitant', color: '#a16207' },
+    fomo: { label: 'FOMO', color: '#c2410c' },
+    revenge: { label: 'Revenge', color: '#be123c' },
+    overconfident: { label: 'Overconfident', color: '#6d28d9' }
+  };
+  var MISTAKES = {
+    'moved-stop': { label: 'Moved the stop' },
+    oversized: { label: 'Oversized' },
+    chased: { label: 'Chased entry' },
+    'early-exit': { label: 'Exited early' },
+    'no-stop': { label: 'No stop in market' },
+    'revenge-add': { label: 'Revenge re-entry' },
+    'broke-plan': { label: 'Broke the plan' },
+    'traded-news': { label: 'Traded into news' }
+  };
+
+  /* ---------- prop-firm compliance ----------
+     EOD equity model: rules are evaluated on end-of-day equity built from
+     daily net P/L, so intraday drawdown breaches are not detectable here. */
+  function compliance(account, trades) {
+    var rules = account && account.rules;
+    if (!rules || rules.startingBalance == null) return null;
+    var mine = trades.filter(function (t) { return t.accountId === account.id; });
+    var days = sortedDays(dailyAggregates(mine));
+    var equity = rules.startingBalance;
+    var floor = rules.maxDrawdown != null ? rules.startingBalance - rules.maxDrawdown : null;
+    var breaches = [];
+    var bestDay = 0;
+    days.forEach(function (d) {
+      if (rules.dailyLossLimit != null && d.pl < -rules.dailyLossLimit) {
+        breaches.push({ type: 'daily-loss', dateKey: d.dateKey, amount: d.pl, limit: rules.dailyLossLimit });
+      }
+      equity += d.pl;
+      if (d.pl > bestDay) bestDay = d.pl;
+      if (floor != null && equity < floor) {
+        breaches.push({ type: 'drawdown', dateKey: d.dateKey, amount: equity - floor, limit: rules.maxDrawdown });
+      }
+      if (floor != null && rules.drawdownType !== 'static') {
+        var trailed = equity - rules.maxDrawdown;
+        if (trailed > floor) floor = trailed;
+        if (rules.drawdownType === 'trail-lock' && floor > rules.startingBalance) floor = rules.startingBalance;
+      }
+    });
+    var profit = equity - rules.startingBalance;
+    var consistency = null;
+    if (rules.consistencyPct != null && profit > 0 && bestDay > 0) {
+      var score = bestDay / profit;
+      consistency = {
+        score: score,
+        pass: score * 100 <= rules.consistencyPct,
+        bestDay: bestDay,
+        neededProfit: score * 100 > rules.consistencyPct
+          ? (bestDay * 100 / rules.consistencyPct) - profit
+          : 0
+      };
+    }
+    return {
+      equity: equity, profit: profit, floor: floor,
+      buffer: floor != null ? equity - floor : null,
+      targetProgress: rules.profitTarget ? Math.max(0, Math.min(1, profit / rules.profitTarget)) : null,
+      consistency: consistency,
+      breaches: breaches,
+      dayCount: days.length
+    };
+  }
+
+  /* ---------- deeper analytics ---------- */
+  function holdMinutes(t) {
+    if (!t.entryTime || !t.exitTime) return null;
+    var m = (new Date(t.exitTime) - new Date(t.entryTime)) / 60000;
+    return isNaN(m) ? null : Math.max(0, m);
+  }
+  function edgeStats(trades) {
+    var wins = [], losses = [], rs = [], holds = [];
+    var total = 0;
+    trades.forEach(function (t) {
+      var n = net(t);
+      total += n;
+      var res = result(t);
+      if (res === 'win') wins.push(n);
+      else if (res === 'loss') losses.push(n);
+      var r = rMultiple(t);
+      if (r !== null) rs.push(r);
+      var h = holdMinutes(t);
+      if (h !== null) holds.push(h);
+    });
+    function avg(a) { return a.length ? a.reduce(function (s, x) { return s + x; }, 0) / a.length : null; }
+    function median(a) {
+      if (!a.length) return null;
+      var s = a.slice().sort(function (x, y) { return x - y; });
+      var mid = Math.floor(s.length / 2);
+      return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+    }
+    var avgWin = avg(wins), avgLoss = avg(losses);
+    return {
+      expectancy: trades.length ? total / trades.length : null,
+      expectancyR: avg(rs),
+      avgWin: avgWin, avgLoss: avgLoss,
+      payoff: (avgWin != null && avgLoss != null && avgLoss !== 0) ? avgWin / -avgLoss : null,
+      medianHoldMin: median(holds)
+    };
+  }
+  /* Group trades by keyFn(trade) -> {key,label} or null to skip */
+  function breakdown(trades, keyFn) {
+    var map = {};
+    trades.forEach(function (t) {
+      var k = keyFn(t);
+      if (!k) return;
+      (Array.isArray(k) ? k : [k]).forEach(function (item) {
+        var b = map[item.key] || (map[item.key] = { key: item.key, label: item.label, order: item.order !== undefined ? item.order : null, pl: 0, count: 0, wins: 0, losses: 0 });
+        b.pl += net(t);
+        b.count += 1;
+        var res = result(t);
+        if (res === 'win') b.wins++;
+        else if (res === 'loss') b.losses++;
+      });
+    });
+    return Object.keys(map).map(function (k) { return map[k]; }).sort(function (a, b) {
+      if (a.order !== null && b.order !== null) return a.order - b.order;
+      return b.pl - a.pl;
+    });
+  }
+
+  /* ---------- goals & streaks ---------- */
+  function goalStreaks(goals, ctx) {
+    var daily = dailyAggregates(ctx.trades || []);
+    var tradingDays = Object.keys(daily).sort();
+    var prepByDay = {};
+    (ctx.prep || []).forEach(function (e) {
+      (prepByDay[e.dateKey] = prepByDay[e.dateKey] || {})[e.kind] = true;
+    });
+    var dllByAccount = {};
+    (ctx.accounts || []).forEach(function (a) {
+      if (a.rules && a.rules.dailyLossLimit != null) dllByAccount[a.id] = a.rules.dailyLossLimit;
+    });
+    var perAccountDay = {};
+    (ctx.trades || []).forEach(function (t) {
+      if (!(t.accountId in dllByAccount)) return;
+      var k = t.accountId + '|' + t.dateKey;
+      perAccountDay[k] = (perAccountDay[k] || 0) + net(t);
+    });
+
+    var META = {
+      'recap-daily': { label: 'Recap every trading day', icon: '✎' },
+      'prep-daily': { label: 'Prep before every session', icon: '☀' },
+      'respect-stop': { label: 'Respect the daily stop', icon: '⛨' },
+      'max-trades': { label: 'Stay under N trades/day', icon: '≤' }
+    };
+    function dayOk(goal, dateKey) {
+      switch (goal.kind) {
+        case 'recap-daily': return !!(prepByDay[dateKey] && prepByDay[dateKey].recap);
+        case 'prep-daily': return !!(prepByDay[dateKey] && prepByDay[dateKey].premarket);
+        case 'respect-stop':
+          return Object.keys(dllByAccount).every(function (accId) {
+            var pl = perAccountDay[accId + '|' + dateKey];
+            return pl === undefined || pl >= -dllByAccount[accId];
+          });
+        case 'max-trades': return daily[dateKey].count <= (goal.param || 3);
+        default: return true;
+      }
+    }
+    return (goals || []).filter(function (g) { return g.enabled; }).map(function (g) {
+      var current = 0, best = 0, run = 0;
+      tradingDays.forEach(function (d) {
+        if (dayOk(g, d)) { run++; if (run > best) best = run; }
+        else run = 0;
+      });
+      current = run; // streak ending at the most recent trading day
+      var meta = META[g.kind] || { label: g.kind, icon: '•' };
+      var label = g.kind === 'max-trades' ? 'Max ' + (g.param || 3) + ' trades/day' : meta.label;
+      return { id: g.id, kind: g.kind, label: label, icon: meta.icon, current: current, best: best, days: tradingDays.length };
+    });
+  }
+
+  /* ---------- CSV (quote-aware, pure & testable) ---------- */
+  function csvParse(text) {
+    var rows = [], row = [], cell = '', inQ = false;
+    for (var i = 0; i < text.length; i++) {
+      var c = text[i];
+      if (inQ) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { cell += '"'; i++; }
+          else inQ = false;
+        } else cell += c;
+      } else if (c === '"') inQ = true;
+      else if (c === ',') { row.push(cell); cell = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(cell); cell = '';
+        if (row.length > 1 || row[0] !== '') rows.push(row);
+        row = [];
+      } else cell += c;
+    }
+    if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
+    return { headers: rows.length ? rows[0] : [], rows: rows.slice(1) };
+  }
+  function csvSerialize(rows) {
+    return rows.map(function (r) {
+      return r.map(function (v) {
+        var s = v === null || v === undefined ? '' : String(v);
+        return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }).join(',');
+    }).join('\r\n');
+  }
+
   return {
-    POINT_VALUES: POINT_VALUES,
+    POINT_VALUES: POINT_VALUES, EMOTIONS: EMOTIONS, MISTAKES: MISTAKES,
     toDateKey: toDateKey, todayKey: todayKey, keyToDate: keyToDate, addDays: addDays,
     daysBetween: daysBetween, advanceCycle: advanceCycle,
     monthLabel: monthLabel, monthMatrix: monthMatrix, fmtDateKey: fmtDateKey, fmtIso: fmtIso, fmtTime: fmtTime,
@@ -272,6 +483,8 @@ TH.calc = (function () {
     dailyAggregates: dailyAggregates, cumulativeSeries: cumulativeSeries, kpis: kpis,
     expensesInRange: expensesInRange, expenseTotal: expenseTotal,
     monthlyRecurring: monthlyRecurring, upcomingRenewals: upcomingRenewals,
-    prepStats: prepStats
+    prepStats: prepStats,
+    compliance: compliance, edgeStats: edgeStats, breakdown: breakdown, holdMinutes: holdMinutes,
+    goalStreaks: goalStreaks, csvParse: csvParse, csvSerialize: csvSerialize
   };
 })();

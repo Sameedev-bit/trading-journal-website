@@ -19,8 +19,8 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0}
 
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:rgba(28,36,51,.18);border-radius:6px;border:2px solid var(--bg)}
-::-webkit-scrollbar-thumb:hover{background:rgba(28,36,51,.3)}
+::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border-radius:6px;border:2px solid var(--bg)}
+::-webkit-scrollbar-thumb:hover{background:var(--line-strong)}
 
 /* ---------- buttons ---------- */
 .btn{
@@ -151,7 +151,7 @@ table.tbl th{
 }
 table.tbl td{padding:10px;border-bottom:1px solid var(--line);vertical-align:middle}
 table.tbl tr:last-child td{border-bottom:0}
-table.tbl tr:hover td{background:rgba(28,36,51,.02)}
+table.tbl tr:hover td{background:var(--hover-wash)}
 table.tbl td.num,table.tbl th.num{text-align:right;font-variant-numeric:tabular-nums}
 
 /* ---------- P/L colors ---------- */
@@ -187,14 +187,14 @@ details.dd .dd-menu{
 }
 details.dd .dd-menu.dd-right{left:auto;right:0}
 .dd-menu .dd-item{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--text-soft)}
-.dd-menu .dd-item:hover{background:rgba(28,36,51,.04)}
+.dd-menu .dd-item:hover{background:var(--hover-wash)}
 .dd-menu .dd-group{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);padding:8px 9px 3px}
 .dd-menu .dd-actions{display:flex;gap:6px;padding:8px 6px 2px;border-top:1px solid var(--line);margin-top:6px}
 
 /* ---------- modal ---------- */
 .modal-overlay{
   position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;
-  background:rgba(28,36,51,.45);backdrop-filter:blur(4px);padding:20px;
+  background:var(--overlay);backdrop-filter:blur(4px);padding:20px;
   animation:fadeIn .15s ease;
 }
 .modal{

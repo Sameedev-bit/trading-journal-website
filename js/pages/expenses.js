@@ -286,7 +286,27 @@
         ui.el('h2', { class: 'card-title', text: 'Expense history' }),
         ui.el('p', { class: 'card-sub', text: 'One-time costs plus every auto-logged subscription renewal, newest first.' })
       ]),
-      ui.el('button', { class: 'btn primary', text: '+ Add one-time expense', onclick: function () { openExpEditor(null); } })
+      ui.el('div', { class: 'row', style: 'gap:6px' }, [
+        ui.el('button', {
+          class: 'btn small ghost', text: '⇩ Export CSV',
+          onclick: function () {
+            var expenses = store.get('expenses') || [];
+            if (!expenses.length) { ui.toast('No expenses to export yet.', 'err'); return; }
+            var rows = [['date', 'name', 'category', 'type', 'amount']];
+            expenses.slice().sort(function (a, b) { return a.dateKey < b.dateKey ? 1 : -1; }).forEach(function (e) {
+              rows.push([e.dateKey, e.name, e.category, e.subscriptionId ? 'renewal' : 'one-time', e.amount]);
+            });
+            var blob = new Blob([calc.csvSerialize(rows)], { type: 'text/csv' });
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'tradeharbor-expenses-' + calc.todayKey() + '.csv';
+            a.click();
+            setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+            ui.toast(expenses.length + ' expenses exported');
+          }
+        }),
+        ui.el('button', { class: 'btn primary', text: '+ Add one-time expense', onclick: function () { openExpEditor(null); } })
+      ])
     ]));
     if (!expenses.length) {
       card.appendChild(ui.emptyState({

@@ -50,7 +50,10 @@
       entryFillCount: 1,
       tagIds: [],
       notes: g('mNotes').value.trim(),
-      checklist: null
+      checklist: null,
+      confidence: g('mConf').value ? parseInt(g('mConf').value, 10) : null,
+      emotions: g('mEmo').value ? [g('mEmo').value] : [],
+      mistakes: []
     };
     return { trade: trade, errors: errors };
   }
@@ -100,6 +103,12 @@
       '<label class="field"><span>Exit time <b class="req">*</b></span><input type="datetime-local" id="mExitT" value="' + nowLocalInput(0) + '"></label>' +
       '<label class="field"><span>Dollar risk ($)</span><input type="number" id="mRisk" min="0" step="1" placeholder="planned risk — enables R"></label>' +
       '<label class="field"><span>Commissions &amp; fees ($)</span><input type="number" id="mComm" min="0" step="0.01" value="0"></label>' +
+      '<label class="field"><span>Confidence going in</span><select id="mConf"><option value="">Not rated</option>' +
+      [1, 2, 3, 4, 5].map(function (n) { return '<option value="' + n + '">' + n + ' / 5</option>'; }).join('') +
+      '</select></label>' +
+      '<label class="field"><span>Emotion</span><select id="mEmo"><option value="">None tagged</option>' +
+      Object.keys(calc.EMOTIONS).map(function (k) { return '<option value="' + k + '">' + calc.EMOTIONS[k].label + '</option>'; }).join('') +
+      '</select></label>' +
       '<label class="field full"><span>Notes</span><textarea id="mNotes" placeholder="What was the setup? What did you see?"></textarea></label>' +
       '</div>' +
       '<div class="row" style="margin-top:16px;justify-content:flex-end">' +

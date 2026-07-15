@@ -96,13 +96,18 @@ TH.seed = (function () {
       { id: 'conn-3', name: 'NinjaTrader Practice', provider: 'ninjatrader', mode: 'demo', status: 'connected', lastSyncAt: null, createdAt: null }
     ];
 
-    /* ---- tracker accounts ---- */
+    /* ---- tracker accounts (rules = prop-firm limits for the compliance page) ---- */
     var accounts = [
-      { id: 'acc-1', name: 'Evaluation 50K',  type: 'eval',     connectionId: 'conn-2', brokerAccountRef: 'TVE-50110', balance: 51840,  drawdownLimit: 48000,  status: 'active', lastSyncAt: null },
-      { id: 'acc-2', name: 'Evaluation 100K', type: 'eval',     connectionId: 'conn-1', brokerAccountRef: 'TVM-10221', balance: 101960, drawdownLimit: 97000,  status: 'active', lastSyncAt: null },
-      { id: 'acc-3', name: 'Funded 50K',      type: 'funded',   connectionId: 'conn-1', brokerAccountRef: 'TVM-77045', balance: 52410,  drawdownLimit: 50000,  status: 'active', lastSyncAt: null },
-      { id: 'acc-4', name: 'Practice Sim',    type: 'practice', connectionId: 'conn-3', brokerAccountRef: 'NT-SIM101', balance: 25230,  drawdownLimit: null,   status: 'active', lastSyncAt: null },
-      { id: 'acc-5', name: 'Manual Journal',  type: 'manual',   connectionId: null,     brokerAccountRef: null,        balance: null,   drawdownLimit: null,   status: 'active', lastSyncAt: null }
+      { id: 'acc-1', name: 'Evaluation 50K',  type: 'eval',     connectionId: 'conn-2', brokerAccountRef: 'TVE-50110', balance: 51840,  drawdownLimit: 48000,  status: 'active', lastSyncAt: null,
+        rules: { startingBalance: 50000, maxDrawdown: 2500, drawdownType: 'trailing', dailyLossLimit: 1250, profitTarget: 3000, consistencyPct: 40 } },
+      { id: 'acc-2', name: 'Evaluation 100K', type: 'eval',     connectionId: 'conn-1', brokerAccountRef: 'TVM-10221', balance: 101960, drawdownLimit: 97000,  status: 'active', lastSyncAt: null,
+        rules: { startingBalance: 100000, maxDrawdown: 3500, drawdownType: 'trailing', dailyLossLimit: 2200, profitTarget: 6000, consistencyPct: 40 } },
+      { id: 'acc-3', name: 'Funded 50K',      type: 'funded',   connectionId: 'conn-1', brokerAccountRef: 'TVM-77045', balance: 52410,  drawdownLimit: 50000,  status: 'active', lastSyncAt: null,
+        rules: { startingBalance: 50000, maxDrawdown: 2500, drawdownType: 'trail-lock', dailyLossLimit: 1100, profitTarget: null, consistencyPct: 50 } },
+      { id: 'acc-4', name: 'Practice Sim',    type: 'practice', connectionId: 'conn-3', brokerAccountRef: 'NT-SIM101', balance: 25230,  drawdownLimit: null,   status: 'active', lastSyncAt: null,
+        rules: { startingBalance: 25000, maxDrawdown: null, drawdownType: 'static', dailyLossLimit: null, profitTarget: null, consistencyPct: null } },
+      { id: 'acc-5', name: 'Manual Journal',  type: 'manual',   connectionId: null,     brokerAccountRef: null,        balance: null,   drawdownLimit: null,   status: 'active', lastSyncAt: null,
+        rules: null }
     ];
 
     /* ---- strategies ---- */
@@ -209,6 +214,17 @@ TH.seed = (function () {
             'Stop was too tight for the volatility today.'
           ]);
         }
+        // psychology layer on roughly half the history
+        if (rng() < 0.55) {
+          t.confidence = intBetween(rng, 2, 5);
+          var isWin = (t.exitPrice - t.entryPrice) * (t.direction === 'long' ? 1 : -1) > 0;
+          t.emotions = [isWin
+            ? pick(rng, ['calm', 'calm', 'confident', 'confident', 'autopilot', 'anxious'])
+            : pick(rng, ['calm', 'anxious', 'fomo', 'hesitant', 'revenge', 'overconfident'])];
+          if (!isWin && rng() < 0.4) {
+            t.mistakes = [pick(rng, ['chased', 'early-exit', 'moved-stop', 'oversized', 'broke-plan', 'traded-news'])];
+          }
+        }
         trades.push(t);
       }
       // occasional manual-journal entry
@@ -300,7 +316,13 @@ TH.seed = (function () {
       prep: prep,
       subscriptions: subscriptions,
       expenses: expenses,
-      jobs: []
+      jobs: [],
+      goals: [
+        { id: 'g-recap', kind: 'recap-daily', enabled: true, param: null },
+        { id: 'g-prep', kind: 'prep-daily', enabled: true, param: null },
+        { id: 'g-stop', kind: 'respect-stop', enabled: true, param: null },
+        { id: 'g-max', kind: 'max-trades', enabled: true, param: 3 }
+      ]
     };
   }
 

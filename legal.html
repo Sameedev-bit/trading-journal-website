@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Legal &amp; Disclosures — TradeHarbor</title>
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<script>(function(){try{if(localStorage.getItem("th:theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}})()</script>
 <link rel="stylesheet" href="css/tokens.css">
 <link rel="stylesheet" href="css/base.css">
 <link rel="stylesheet" href="css/landing.css">
@@ -17,6 +18,7 @@
     <span>Trade<em>Harbor</em></span>
   </a>
   <div class="nav-right">
+    <button class="btn ghost" title="Toggle dark mode" onclick="try{localStorage.setItem('th:theme',document.documentElement.dataset.theme==='dark'?'light':'dark')}catch(e){};location.reload()">◐</button>
     <a class="btn" href="index.html">← Back to home</a>
     <a class="btn primary" href="app/stats.html">Open the app</a>
   </div>
