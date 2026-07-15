@@ -36,7 +36,23 @@ sync. No servers to run; the free Supabase tier covers it.
 3. Commit & push — GitHub Pages redeploys automatically. The **Account & Sync**
    page now shows the sign-in form, and email magic links work immediately.
 
-## 5. (Optional, later) Google sign-in
+## 5. (Optional) Live Tradovate API sync
+The repo ships a stateless proxy function at
+`supabase/functions/tradovate-sync/index.ts` — it forwards a user's Tradovate
+credentials to Tradovate over HTTPS, returns the short-lived access token, and
+stores nothing. To deploy it:
+
+1. Install the Supabase CLI (`npm i -g supabase`), then `supabase login`.
+2. From the repo root: `supabase link --project-ref YOURPROJECT`
+3. `supabase functions deploy tradovate-sync --no-verify-jwt`
+
+Once deployed, the **⚡ Connect Tradovate API** button on Broker Connections
+goes live. Users need Tradovate's own requirements: a live funded account
+($1,000+) with the **API Access add-on** and an API key (cid/secret) from
+their Tradovate dashboard. Prop-firm eval accounts generally can't use the
+API — the CSV import presets on the Trades page cover those.
+
+## 6. (Optional, later) Google sign-in
 1. Supabase: **Authentication → Providers → Google** — it shows you the exact
    redirect URL to register.
 2. Google Cloud console → create OAuth credentials (type: Web application),

@@ -273,9 +273,29 @@ TH.cloud = (function () {
     if (TH.store && TH.store.onChange) TH.store.onChange(markDirty);
   }
 
+  /* invoke a Supabase Edge Function (e.g. the Tradovate proxy) */
+  function callFunction(name, payload) {
+    if (!configured()) return Promise.reject(new Error('Cloud is not configured on this deployment.'));
+    return fetch(TH_CLOUD.url.replace(/\/$/, '') + '/functions/v1/' + name, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + TH_CLOUD.anonKey,
+        'apikey': TH_CLOUD.anonKey
+      },
+      body: JSON.stringify(payload || {})
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (data) {
+        if (!res.ok || data.error) throw new Error(data.error || ('Function error HTTP ' + res.status));
+        return data;
+      });
+    });
+  }
+
   return {
     boot: boot,
     configured: configured,
+    callFunction: callFunction,
     onStatus: onStatus,
     getStatus: function () { return { status: status, detail: statusDetail }; },
     getUser: function () { return user; },

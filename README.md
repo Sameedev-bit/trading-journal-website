@@ -27,11 +27,11 @@ Opening `index.html` directly from disk (`file://`) also works.
 | **Prop Rules** *(new)* | Per-account prop-firm compliance: trailing/static drawdown floor & buffer, daily loss limit, profit-target progress, consistency-rule score, breach alerts (also surfaced on Stats) |
 | **Insights** *(new)* | Expectancy, avg win/loss, payoff ratio, median hold; P/L by hour, weekday, symbol, hold time and tag; P/L by emotion, confidence calibration, cost-of-mistakes |
 | **Psychology** *(new)* | Confidence rating (1–5), emotion tags and mistake tags on every trade review — feeding the Insights breakdowns |
-| **CSV import/export** *(new)* | Column-mapping CSV importer with dedupe; one-click export of filtered trades and expenses |
+| **CSV import/export** | Broker presets (NinjaTrader 8 Trade Performance / Executions, Tradovate fills) with automatic **fill-pairing into round-trip trades**, symbol normalization (`ESU6` → ES) across 40+ futures contracts, column mapping, dedupe; one-click exports |
 | **Monthly Report** *(new)* | Printable month-end summary (KPIs, calendar, breakdowns, compliance, prep adherence) via `window.print()` |
 | **Goals & streaks** *(new)* | Process goals (recap daily, prep daily, respect the stop, max trades/day) with current/best streaks |
 | **Manual Entry** | Hand-log trades with a live derived P/L, points and R preview |
-| **Broker Connections** | Simulated Tradovate/NinjaTrader connections: sync recent trades, import older ranges as async jobs with a persistent history log, linked-accounts table with distance-to-drawdown |
+| **Broker Connections** | **Real Tradovate API sync** via a stateless Supabase edge proxy (short-lived tokens, session-only; see `supabase/functions/tradovate-sync/`) plus simulated demo connections; linked-accounts table with distance-to-drawdown |
 | **Accounts** | Tracker account CRUD (eval / funded / practice / manual) with archive-not-delete safety |
 
 Light **and dark themes** — toggle in the sidebar footer, persists in `th:theme`.

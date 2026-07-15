@@ -197,6 +197,75 @@ TH5.store.onChange(e => notified.push(e));
 TH5.store.save('tags', TH5.store.get('tags'));
 check('save() notifies listeners', notified.indexOf('tags') !== -1, notified);
 
+// ---- 16. v4: symbol normalization ----
+[
+  ['ESU6', 'ES'], ['ESU2026', 'ES'], ['MESZ5', 'MES'], ['ES 09-26', 'ES'],
+  ['ES SEP26', 'ES'], ['MNQZ2026', 'MNQ'], ['CLX5', 'CL'], ['6EU6', '6E'],
+  ['M6EU6', 'M6E'], ['GC 12-26', 'GC'], ['ES', 'ES']
+].forEach(([raw, want]) => {
+  const got = TH5.calc.normalizeSymbol(raw);
+  check(`normalizeSymbol ${raw} -> ${want}`, got.symbol === want && got.known === true, got);
+});
+check('normalizeSymbol unknown passes through', TH5.calc.normalizeSymbol('XYZU6').known === false);
+
+// ---- 17. v4: fill pairing ----
+function fill(sym, ts, side, qty, price, id) {
+  return { symbol: sym, ts, side, qty, price, commission: 1, execId: id };
+}
+// simple round trip
+let pf = TH5.calc.pairFills([
+  fill('ES', '2026-03-02T09:30:00', 'buy', 2, 5000, 'a'),
+  fill('ES', '2026-03-02T09:45:00', 'sell', 2, 5010, 'b')
+]);
+check('pair: one round trip', pf.trades.length === 1 && pf.open.length === 0);
+check('pair: direction/qty/prices', (() => {
+  const t = pf.trades[0];
+  return t.direction === 'long' && t.contracts === 2 && t.entryPrice === 5000 && t.exitPrice === 5010;
+})(), pf.trades[0]);
+
+// scale-in: weighted entry + pyramid count
+pf = TH5.calc.pairFills([
+  fill('NQ', '2026-03-02T10:00:00', 'buy', 1, 18000, 'c'),
+  fill('NQ', '2026-03-02T10:05:00', 'buy', 1, 18010, 'd'),
+  fill('NQ', '2026-03-02T10:20:00', 'sell', 2, 18030, 'e')
+]);
+check('pair: scale-in weighted entry', pf.trades.length === 1 && pf.trades[0].entryPrice === 18005 && pf.trades[0].entryFillCount === 2, pf.trades[0]);
+
+// flip long -> short splits into two trades
+pf = TH5.calc.pairFills([
+  fill('ES', '2026-03-03T09:30:00', 'buy', 2, 5000, 'f'),
+  fill('ES', '2026-03-03T09:40:00', 'sell', 5, 5008, 'g'),
+  fill('ES', '2026-03-03T09:55:00', 'buy', 3, 5004, 'h')
+]);
+check('pair: flip splits into two trades', pf.trades.length === 2, pf.trades.length);
+check('pair: flip trade 1 long 2 lots', pf.trades[0].direction === 'long' && pf.trades[0].contracts === 2);
+check('pair: flip trade 2 short 3 lots', pf.trades[1].direction === 'short' && pf.trades[1].contracts === 3 && pf.trades[1].entryPrice === 5008 && pf.trades[1].exitPrice === 5004);
+
+// open position at end is reported, not emitted
+pf = TH5.calc.pairFills([fill('GC', '2026-03-04T09:00:00', 'buy', 1, 2400, 'i')]);
+check('pair: open position not emitted', pf.trades.length === 0 && pf.open.length === 1 && pf.open[0].position === 1);
+
+// interleaved symbols pair independently
+pf = TH5.calc.pairFills([
+  fill('ES', '2026-03-05T09:00:00', 'buy', 1, 5000, 'j'),
+  fill('NQ', '2026-03-05T09:01:00', 'sell', 1, 18000, 'k'),
+  fill('ES', '2026-03-05T09:10:00', 'sell', 1, 5002, 'l'),
+  fill('NQ', '2026-03-05T09:12:00', 'buy', 1, 17990, 'm')
+]);
+check('pair: interleaved symbols', pf.trades.length === 2 && pf.trades.every(t => t.contracts === 1));
+
+// ---- 18. v4: broker preset auto-mapping (NT8 Trade Performance fixture) ----
+const ntCsv = 'Trade number,Instrument,Account,Strategy,Market pos.,Qty,Entry price,Exit price,Entry time,Exit time,Entry name,Exit name,Profit,Cum. profit,Commission,MAE,MFE\r\n' +
+  '1,ES 09-26,Sim101,,Long,2,5000.25,5008.50,3/2/2026 9:30:00 AM,3/2/2026 9:45:00 AM,Entry,Exit,$823.00,$823.00,$4.20,$100.00,$900.00';
+const ntParsed = TH5.calc.csvParse(ntCsv);
+const ntMap = TH5.calc.autoMapHeaders(ntParsed.headers, TH5.calc.BROKER_PRESETS['nt8-trades'].hints);
+check('NT8 preset maps all key columns', ['symbol','direction','contracts','entryPrice','exitPrice','entryTime','exitTime','commissions'].every(k => ntMap[k] !== -1), ntMap);
+check('NT8 instrument normalizes', TH5.calc.normalizeSymbol(ntParsed.rows[0][ntMap.symbol]).symbol === 'ES');
+check('parseSide handles Long/Sell/B', TH5.calc.parseSide('Long') === 'buy' && TH5.calc.parseSide('Sell') === 'sell' && TH5.calc.parseSide('B') === 'buy');
+
+// expanded point values sanity
+check('point values: CL/GC/YM/6E present', TH5.calc.POINT_VALUES.CL === 1000 && TH5.calc.POINT_VALUES.GC === 100 && TH5.calc.POINT_VALUES.YM === 5 && TH5.calc.POINT_VALUES['6E'] === 125000);
+
 // ---- 15. v3: cloud sync with mocked supabase ----
 (async function () {
   // mock supabase client
