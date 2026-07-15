@@ -266,6 +266,34 @@ check('parseSide handles Long/Sell/B', TH5.calc.parseSide('Long') === 'buy' && T
 // expanded point values sanity
 check('point values: CL/GC/YM/6E present', TH5.calc.POINT_VALUES.CL === 1000 && TH5.calc.POINT_VALUES.GC === 100 && TH5.calc.POINT_VALUES.YM === 5 && TH5.calc.POINT_VALUES['6E'] === 125000);
 
+// ---- 19. v5: prop-platform support ----
+// ProjectX contract ids + CQG-style aliases
+[['CON.F.US.EP.U25','ES'], ['CON.F.US.ENQ.Z25','NQ'], ['CON.F.US.MES.U25','MES'], ['EP','ES'], ['ENQ','NQ'], ['CLE','CL']].forEach(([raw, want]) => {
+  const got = TH5.calc.normalizeSymbol(raw);
+  check(`alias ${raw} -> ${want}`, got.symbol === want && got.known === true, got);
+});
+check('parseSide 0/1 codes', TH5.calc.parseSide('0') === 'buy' && TH5.calc.parseSide('1') === 'sell');
+
+// Rithmic R|Trader order-history header fixture
+const rithmicHeaders = ['Account','Status','Symbol','Buy/Sell','Qty To Fill','Filled Qty','Avg Fill Price','Limit Price','Order Number','Update Time (CST)'];
+const rMap = TH5.calc.autoMapHeaders(rithmicHeaders, TH5.calc.BROKER_PRESETS['rithmic-orders'].hints);
+check('Rithmic preset maps required columns', ['symbol','time','side','qty','price','id'].every(k => rMap[k] !== -1), rMap);
+check('Rithmic qty maps to Filled Qty (not Qty To Fill)', rithmicHeaders[rMap.qty] === 'Filled Qty', rithmicHeaders[rMap.qty]);
+
+// TopstepX trades export header fixture
+const pxHeaders = ['Id','ContractName','CreationTimestamp','Price','Fees','Side','Size','Voided','OrderId'];
+const pMap = TH5.calc.autoMapHeaders(pxHeaders, TH5.calc.BROKER_PRESETS['topstepx-trades'].hints);
+check('TopstepX preset maps required columns', ['symbol','time','side','qty','price','id'].every(k => pMap[k] !== -1), pMap);
+
+// ProjectX half-turn fixture -> pairFills -> one round trip with fees summed
+const pxFills = [
+  { symbol: TH5.calc.normalizeSymbol('CON.F.US.EP.U25').symbol, ts: '2026-04-01T09:30:00Z', side: '0' === '0' ? 'buy' : 'sell', qty: 2, price: 5100, commission: 2.5, execId: 'px1' },
+  { symbol: TH5.calc.normalizeSymbol('CON.F.US.EP.U25').symbol, ts: '2026-04-01T09:50:00Z', side: 'sell', qty: 2, price: 5106, commission: 2.5, execId: 'px2' }
+];
+const pxPaired = TH5.calc.pairFills(pxFills);
+check('ProjectX fixture pairs to one ES trade', pxPaired.trades.length === 1 && pxPaired.trades[0].symbol === 'ES' && pxPaired.trades[0].contracts === 2, pxPaired.trades);
+check('ProjectX fixture fees summed', pxPaired.trades[0].commissions === 5, pxPaired.trades[0].commissions);
+
 // ---- 15. v3: cloud sync with mocked supabase ----
 (async function () {
   // mock supabase client

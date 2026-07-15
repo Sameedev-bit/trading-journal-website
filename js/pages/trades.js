@@ -548,5 +548,9 @@
   document.addEventListener('DOMContentLoaded', function () {
     ui = TH.ui; calc = TH.calc; store = TH.store;
     render();
+    if (/[?&]import=1/.test(location.search)) {
+      history.replaceState(null, '', location.pathname);
+      openImportModal();
+    }
   });
 })();

@@ -23,11 +23,29 @@ TH.calc = (function () {
   };
   var BE_BAND = 0.5; // |net| <= $0.50 counts as breakeven
 
-  /* "ESU6", "ESU2026", "ES 09-26", "ES SEP26", "MESZ5" → {symbol:'ES'|'MES', known:true} */
+  /* platform-specific product codes → canonical roots (ProjectX/CQG style) */
+  var SYMBOL_ALIASES = {
+    EP: 'ES', ENQ: 'NQ', MNQ: 'MNQ', MES: 'MES', // CME index (EP/ENQ are CQG codes)
+    YM2: 'YM', MYM2: 'MYM',
+    CLE: 'CL', MCLE: 'MCL', NGE: 'NG',
+    GCE: 'GC', MGC2: 'MGC', SIE: 'SI',
+    EU6: '6E', GBP6: '6B', JY6: '6J', AD6: '6A', CD6: '6C',
+    ZBE: 'ZB', ZNE: 'ZN'
+  };
+
+  /* "ESU6", "ESU2026", "ES 09-26", "ES SEP26", "MESZ5", "CON.F.US.EP.U25"
+     → {symbol:'ES'|'MES'|…, known:true} */
   var MONTH_CODES = 'FGHJKMNQUVXZ';
   function normalizeSymbol(raw) {
     if (!raw) return { symbol: '', known: false };
     var s = String(raw).toUpperCase().trim();
+    // dotted contract ids (ProjectX): CON.F.US.EP.U25 → product token before the expiry part
+    if (s.indexOf('.') !== -1) {
+      var toks = s.split('.').filter(Boolean);
+      // drop a trailing expiry-looking token (month code + digits)
+      if (toks.length > 1 && /^[FGHJKMNQUVXZ]?\d{1,4}$/.test(toks[toks.length - 1])) toks.pop();
+      s = toks[toks.length - 1] || s;
+    }
     // drop expiry tokens after whitespace: "ES 09-26", "ES SEP26", "ES DEC 2026"
     var parts = s.split(/\s+/);
     if (parts.length > 1 && /^(\d{2}-\d{2,4}|[A-Z]{3}\.?\s?\d{2,4}|\d{4})$/.test(parts.slice(1).join(' '))) {
@@ -35,6 +53,7 @@ TH.calc = (function () {
     } else {
       s = parts[0];
     }
+    if (SYMBOL_ALIASES[s]) return { symbol: SYMBOL_ALIASES[s], known: true };
     if (POINT_VALUES[s] !== undefined) return { symbol: s, known: true };
     // strip trailing month-code + year digits: ESU6, ESU26, MESZ2026
     var m = s.match(/^([A-Z0-9]+?)([FGHJKMNQUVXZ])(\d{1,4})$/);
@@ -618,6 +637,30 @@ TH.calc = (function () {
         price: ['price', 'fill price', 'avg price', 'avg fill price'], commission: ['commission', 'fees'],
         id: ['fill id', 'id', 'order id']
       }
+    },
+    'rithmic-orders': {
+      label: 'Rithmic R|Trader — order history export', kind: 'fills',
+      hints: {
+        symbol: ['symbol', 'instrument'],
+        time: ['update time (cst)', 'update time', 'fill time', 'create time', 'time'],
+        side: ['buy/sell', 'b/s', 'side'],
+        qty: ['filled qty', 'qty filled', 'quantity filled', 'filled', 'qty'],
+        price: ['avg fill price', 'fill price', 'price'],
+        commission: ['commission fill rate', 'commission', 'fees'],
+        id: ['order number', 'order id', 'exchange order id', 'basket id']
+      }
+    },
+    'topstepx-trades': {
+      label: 'TopstepX (ProjectX) — trades export', kind: 'fills',
+      hints: {
+        symbol: ['contractname', 'contract name', 'contract', 'symbol', 'contractid', 'contract id'],
+        time: ['creationtimestamp', 'creation timestamp', 'created', 'entered', 'timestamp', 'time'],
+        side: ['side', 'type', 'b/s', 'buy/sell'],
+        qty: ['size', 'qty', 'quantity'],
+        price: ['price', 'fillprice', 'fill price'],
+        commission: ['fees', 'fee', 'commission'],
+        id: ['id', 'tradeid', 'trade id']
+      }
     }
   };
   function autoMapHeaders(headers, hints) {
@@ -634,6 +677,8 @@ TH.calc = (function () {
   }
   function parseSide(raw) {
     var s = String(raw || '').trim().toLowerCase();
+    if (s === '0') return 'buy';   // ProjectX side codes
+    if (s === '1') return 'sell';
     if (/^(b|buy|bot|bought|long)/.test(s)) return 'buy';
     if (/^(s|sell|sld|sold|short)/.test(s)) return 'sell';
     return null;
