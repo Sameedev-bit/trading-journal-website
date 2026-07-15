@@ -1,0 +1,1 @@
+Disables Jekyll processing so folders like js/, css/, app/ are served verbatim.
