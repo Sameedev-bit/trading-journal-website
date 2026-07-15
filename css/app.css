@@ -19,7 +19,18 @@
 .sb-user{
   display:flex;align-items:center;gap:10px;padding:10px;border-radius:var(--radius-sm);
   background:var(--panel2);border:1px solid var(--line);margin-bottom:10px;
+  text-decoration:none;color:inherit;transition:border-color .13s;
 }
+a.sb-user:hover{text-decoration:none;border-color:var(--accent)}
+.sync-dot{
+  display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--faint);margin-right:5px;vertical-align:1px;
+}
+.sync-dot.green{background:var(--green)}
+.sync-dot.blue{background:var(--blue);animation:pulseDot 1.2s ease-in-out infinite}
+.sync-dot.amber{background:var(--amber)}
+.sync-dot.red{background:var(--red)}
+@keyframes pulseDot{0%,100%{opacity:1}50%{opacity:.35}}
 .sb-user .avatar{
   width:32px;height:32px;border-radius:9px;flex:none;display:flex;align-items:center;justify-content:center;
   background:linear-gradient(135deg,var(--accent),var(--blue));color:#ffffff;font:800 12px var(--font);

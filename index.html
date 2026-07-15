@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TradeHarbor — Log every trade. Understand your edge.</title>
 <meta name="description" content="TradeHarbor is a trading journal for futures and prop traders: automatic trade sync, multi-account stats, a daily prep &amp; review ritual, strategy playbooks — and expense tracking so your net P&amp;L tells the truth.">
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#f6f4ee" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f131a" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="./assets/icon-192.png">
 <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
 <script>(function(){try{if(localStorage.getItem("th:theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}})()</script>
 <link rel="stylesheet" href="css/tokens.css">
@@ -20,7 +24,7 @@
   </a>
   <div class="nav-right">
     <button class="btn ghost" title="Toggle dark mode" onclick="try{localStorage.setItem('th:theme',document.documentElement.dataset.theme==='dark'?'light':'dark')}catch(e){};location.reload()">◐</button>
-    <span class="land-badge">Demo build</span>
+    <span class="land-badge">Free · local-first</span>
     <a class="btn primary" href="app/stats.html">Open the app</a>
   </div>
 </nav>
@@ -33,7 +37,7 @@
     <a class="btn primary" href="app/stats.html">Open the app — free demo</a>
     <a class="btn ghost" href="#features">See the features</a>
   </div>
-  <div class="cta-note">Runs entirely in your browser · demo data preloaded · nothing leaves your machine</div>
+  <div class="cta-note">Local-first: works fully in your browser · optional free account syncs across devices</div>
 </header>
 
 <div class="preview-wrap">
@@ -169,8 +173,8 @@
   <div class="lf-meta">
     <div class="lf-links">
       <a href="legal.html">Disclaimer</a>
-      <a href="legal.html#privacy">Privacy</a>
-      <a href="legal.html">Legal</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="terms.html">Terms</a>
     </div>
     <div class="lf-copy">© 2026 TradeHarbor. All rights reserved.</div>
   </div>

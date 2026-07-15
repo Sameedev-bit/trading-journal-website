@@ -237,8 +237,19 @@ TH.ui = (function () {
     { group: 'Data' },
     { id: 'manual-entry', label: 'Manual Entry', hint: 'Form', href: 'manual-entry.html' },
     { id: 'brokers', label: 'Broker Connections', hint: 'Sync', href: 'brokers.html' },
-    { id: 'accounts', label: 'Accounts', hint: 'Manage', href: 'accounts.html' }
+    { id: 'accounts', label: 'Accounts', hint: 'Manage', href: 'accounts.html' },
+    { group: 'Cloud' },
+    { id: 'account', label: 'Account & Sync', hint: 'You', href: 'account.html' }
   ];
+
+  var SYNC_DOT = {
+    unconfigured: { cls: '', label: 'Local only' },
+    signedOut: { cls: '', label: 'Not signed in' },
+    syncing: { cls: 'blue', label: 'Syncing…' },
+    synced: { cls: 'green', label: 'Synced' },
+    offline: { cls: 'amber', label: 'Offline' },
+    error: { cls: 'red', label: 'Sync error' }
+  };
 
   function renderShell() {
     var page = document.body.dataset.page || '';
@@ -255,13 +266,20 @@ TH.ui = (function () {
         el('span', { class: 'b-name', html: 'Trade<em>Harbor</em>' })
       ]));
       var initials = (settings.traderName || 'T H').split(/\s+/).map(function (w) { return w[0] || ''; }).join('').slice(0, 2).toUpperCase();
-      sb.appendChild(el('div', { class: 'sb-user' }, [
+      var syncLine = el('div', { class: 'u-ws', text: settings.workspaceName || 'Workspace' });
+      sb.appendChild(el('a', { class: 'sb-user', href: 'account.html', title: 'Account & sync' }, [
         el('div', { class: 'avatar', text: initials }),
         el('div', {}, [
           el('div', { class: 'u-name', text: settings.traderName || 'Trader' }),
-          el('div', { class: 'u-ws', text: settings.workspaceName || 'Workspace' })
+          syncLine
         ])
       ]));
+      if (TH.cloud) {
+        TH.cloud.onStatus(function (s) {
+          var meta = SYNC_DOT[s] || SYNC_DOT.unconfigured;
+          syncLine.innerHTML = '<span class="sync-dot ' + meta.cls + '"></span>' + esc(meta.label);
+        });
+      }
       NAV.forEach(function (item) {
         if (item.group) { sb.appendChild(el('div', { class: 'sb-group', text: item.group })); return; }
         var link = el('a', {
@@ -283,22 +301,10 @@ TH.ui = (function () {
               location.reload();
             }
           }),
-          el('button', {
-            text: 'Reset demo data', onclick: function () {
-              confirmBox({
-                title: 'Reset demo data?',
-                message: 'This clears every trade, note, screenshot, expense and setting in this browser and reloads the original demo dataset.',
-                okLabel: 'Reset everything', danger: true
-              }).then(function (ok) {
-                if (!ok) return;
-                TH.store.resetToDemo();
-                location.reload();
-              });
-            }
-          }),
+          el('button', { text: 'Data & reset', onclick: openDataModal }),
           el('a', { href: '../legal.html', text: 'Legal' })
         ]),
-        el('div', { class: 'sb-copy', text: '© 2026 TradeHarbor · demo build' })
+        el('div', { class: 'sb-copy', text: '© 2026 TradeHarbor' })
       ]);
       sb.appendChild(foot);
     }
@@ -324,8 +330,8 @@ TH.ui = (function () {
         'and is not suitable for every investor. You can lose more than your initial investment. Trade only with ' +
         'risk capital. Past performance is not indicative of future results. TradeHarbor is a journaling tool, ' +
         'not financial advice.</div>' +
-        '<div class="f-links"><a href="../legal.html">Disclaimer</a><a href="../legal.html#privacy">Privacy</a>' +
-        '<a href="../legal.html">Legal</a></div>';
+        '<div class="f-links"><a href="../legal.html">Disclaimer</a><a href="../privacy.html">Privacy</a>' +
+        '<a href="../terms.html">Terms</a></div>';
     }
 
     /* mobile top bar */
@@ -359,6 +365,48 @@ TH.ui = (function () {
     ]));
   }
 
+  /* data-mode chooser: wipe this browser's journal and reseed */
+  function openDataModal() {
+    modal({
+      title: 'Data & reset',
+      body: '<p style="color:var(--text-soft)">Wipe this browser’s journal and start over. This does not touch any cloud copy tied to your account.</p>',
+      actions: [
+        { label: 'Cancel', kind: 'ghost' },
+        {
+          label: 'Start fresh (empty journal)', kind: '',
+          onClick: function () {
+            confirmBox({ title: 'Start fresh?', message: 'Every local trade, note, screenshot and expense will be erased. Your playbook scaffolding (strategies, tags, goals) starts clean.', okLabel: 'Erase & start fresh', danger: true })
+              .then(function (ok) { if (ok) { TH.store.resetTo('fresh'); location.reload(); } });
+          }
+        },
+        {
+          label: 'Load demo data', kind: 'primary',
+          onClick: function () {
+            confirmBox({ title: 'Load demo data?', message: 'Every local trade, note, screenshot and expense will be replaced with the sample dataset.', okLabel: 'Replace with demo', danger: true })
+              .then(function (ok) { if (ok) { TH.store.resetTo('demo'); location.reload(); } });
+          }
+        }
+      ]
+    });
+  }
+
+  /* first-visit welcome: demo data is already seeded; offer the fresh start */
+  function showWelcome() {
+    modal({
+      title: 'Welcome to TradeHarbor',
+      body:
+        '<p style="color:var(--text-soft)">Your journal lives in this browser (sign in later to sync it across devices). ' +
+        'We’ve loaded <b>three months of sample data</b> so you can explore every page — or start with a clean, empty journal.</p>',
+      actions: [
+        {
+          label: 'Start fresh instead', kind: 'ghost',
+          onClick: function () { TH.store.resetTo('fresh'); location.reload(); }
+        },
+        { label: 'Explore with demo data', kind: 'primary' }
+      ]
+    });
+  }
+
   function emptyState(opts) {
     return el('div', { class: 'empty' }, [
       el('div', { class: 'e-icon', text: opts.icon || '◎' }),
@@ -374,8 +422,13 @@ TH.ui = (function () {
     if (!isApp) return;
     var info = TH.store.init();
     renderShell();
-    if (info && info.renewed > 0) {
+    if (TH.cloud) TH.cloud.boot();
+    if (info && info.firstVisit) showWelcome();
+    else if (info && info.renewed > 0) {
       toast(info.renewed + ' subscription renewal' + (info.renewed > 1 ? 's' : '') + ' auto-logged to Expenses', 'info');
+    }
+    if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+      navigator.serviceWorker.register('../sw.js').catch(function () { /* offline shell is best-effort */ });
     }
   });
 

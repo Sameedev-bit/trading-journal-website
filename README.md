@@ -1,8 +1,8 @@
 # TradeHarbor — Trading Journal for Futures & Prop Traders
 
-TradeHarbor is a fully client-side trading journal built with plain HTML, CSS and JavaScript.
-No build step, no dependencies, no server — open it in a browser and it works, with a realistic
-demo dataset preloaded.
+TradeHarbor is a local-first trading journal built with plain HTML, CSS and JavaScript — no
+build step, no framework. It works fully offline in the browser (installable as a PWA), and can
+optionally sync journals across devices with a free Supabase backend (see `SETUP-CLOUD.md`).
 
 ## Run it
 
@@ -35,6 +35,18 @@ Opening `index.html` directly from disk (`file://`) also works.
 | **Accounts** | Tracker account CRUD (eval / funded / practice / manual) with archive-not-delete safety |
 
 Light **and dark themes** — toggle in the sidebar footer, persists in `th:theme`.
+
+**Real-app layer** *(v3)*:
+- **Accounts & sync** — optional sign-in (email magic link / Google) via Supabase; per-entity
+  last-write-wins sync with offline queue; Account & Sync page with status, manual sync, and
+  cloud-copy deletion. Ships in local-only mode until `js/cloud-config.js` is filled in
+  (`SETUP-CLOUD.md` walks through the 10-minute setup; `supabase/schema.sql` has the RLS schema).
+- **PWA** — installable, offline app shell (`manifest.webmanifest`, `sw.js` — bump
+  `CACHE_VERSION` when deploying changes).
+- **Onboarding** — first-visit choice of demo data vs fresh journal, plus a getting-started
+  checklist; "Data & reset" in the sidebar switches modes anytime.
+- **Legal** — `privacy.html` and `terms.html` (drafts — get professional review before charging).
+- **CI** — `tests/run.js` (54 assertions) runs on every push via GitHub Actions.
 
 ## How it works
 

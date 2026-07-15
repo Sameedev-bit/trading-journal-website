@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — TradeHarbor</title>
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<script>(function(){try{if(localStorage.getItem("th:theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}})()</script>
+<link rel="stylesheet" href="css/tokens.css">
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/landing.css">
+</head>
+<body>
+
+<nav class="land-nav">
+  <a class="brand" href="index.html">
+    <img src="assets/logo.svg" alt="TradeHarbor logo">
+    <span>Trade<em>Harbor</em></span>
+  </a>
+  <div class="nav-right">
+    <a class="btn" href="index.html">← Back to home</a>
+    <a class="btn primary" href="app/stats.html">Open the app</a>
+  </div>
+</nav>
+
+<div class="legal-body">
+  <h1>Privacy Policy</h1>
+  <p class="lead">Last updated: July 2026. The short version: your journal is yours. We store as little as possible, sell nothing, and you can export or delete everything at any time.</p>
+
+  <section>
+    <h2>Local-first by design</h2>
+    <p>TradeHarbor works entirely in your browser by default. Trades, notes, screenshots, expenses, settings and theme preference are stored in your browser's local storage on your own device. In this default mode, nothing you type is transmitted to us or anyone else. Clearing your browser's site data permanently deletes this local copy.</p>
+  </section>
+
+  <section>
+    <h2>What we store if you create an account</h2>
+    <p>If you choose to sign in (optional), your journal is additionally synced to a private database space so it can follow you across devices and survive browser wipes. That copy contains: your email address (used only for sign-in links and account identity), your journal data (trades, notes, screenshots, prep entries, strategies, tags, expenses, subscriptions, goals, settings), and timestamps used to synchronize devices.</p>
+    <p>Cloud data is hosted on Supabase infrastructure. Access is protected by row-level security: database rules guarantee that each account can only ever read or write its own rows. We do not sell, rent, or share your data with advertisers or data brokers, and we do not use your journal data for anything except providing the sync service to you.</p>
+  </section>
+
+  <section>
+    <h2>What we do not collect</h2>
+    <p>No advertising trackers, no third-party analytics cookies, no fingerprinting, no social pixels. The only browser storage used is local storage for your journal and theme, and the session token that keeps you signed in.</p>
+  </section>
+
+  <section>
+    <h2>Your rights and controls</h2>
+    <p><b>Export:</b> download your trades and expenses as CSV at any time from the Trades and Expenses pages. <b>Delete cloud data:</b> one click on the Account &amp; Sync page removes your journal from the server while leaving your local copy intact. <b>Delete everything:</b> delete the cloud copy, then clear this site's data in your browser. If you want your account record itself (email) removed, contact us and we'll delete it.</p>
+  </section>
+
+  <section>
+    <h2>Security</h2>
+    <p>Cloud traffic is encrypted in transit (HTTPS). Sign-in uses one-time email links or Google OAuth — TradeHarbor never sees or stores a password. Screenshots you attach are stored as part of your private journal rows, subject to the same row-level security.</p>
+  </section>
+
+  <section>
+    <h2>Changes and contact</h2>
+    <p>If this policy changes materially, we'll note it here with a new "last updated" date. Questions or deletion requests: open an issue on the project's GitHub repository or contact the operator listed there.</p>
+  </section>
+
+  <p class="faint" style="font-size:11px">© 2026 TradeHarbor. See also the <a href="terms.html">Terms of Service</a> and <a href="legal.html">Risk Disclosures</a>.</p>
+</div>
+
+</body>
+</html>
